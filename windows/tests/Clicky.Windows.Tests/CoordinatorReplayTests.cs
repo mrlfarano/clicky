@@ -174,20 +174,23 @@ public sealed partial class CoordinatorReplayTests
     {
         var overlayWindow = new CursorOverlayWindow();
         var textToSpeechSink = new InMemoryTextToSpeechSink();
+        var fallbackSpeechSink = new InMemoryFallbackSpeechSink();
+        // An empty manifest fails every request closed, so even the client's warm-up HEAD opens no socket.
+        var failClosedHttpClient = new HttpClient(new ReplayHttpMessageHandler(new ReplayManifest([], null), TimeSpan.Zero, TimeProvider.System));
         var interactionRunner = new TracerInteractionRunner(
             ClickyCommandLineOptions.Parse([]),
             systemPrompt: "",
-            claudeModel: CompanionSettings.DefaultClaudeModel,
             CompanionSettings.Defaults,
-            new HttpClient(),
-            new Uri("http://replay.clicky.invalid/chat"),
+            new ClaudeClient(failClosedHttpClient, new Uri("http://replay.clicky.invalid/chat"), CompanionSettings.DefaultClaudeModel, TimeProvider.System),
+            [],
             overlayWindow,
             new MonitorScreenCapturer(),
             analyticsSink,
             textToSpeechSink,
-            new InMemoryFallbackSpeechSink());
+            fallbackSpeechSink);
         return new CompanionCoordinator(
-            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink, new CompanionVoiceStateReporter());
+            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink, fallbackSpeechSink,
+            new CompanionVoiceStateReporter());
     }
 
     [GeneratedRegex(@"voiceState\w*\s*=(?!=)", RegexOptions.IgnoreCase)]

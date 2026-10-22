@@ -192,9 +192,11 @@ internal static class Program
         // Created here, at startup, so its TLS warm-up HEAD goes out before the first press (G3).
         var claudeClient = new ClaudeClient(workerHttpClient, chatEndpoint, effectiveClaudeModel, timeProvider);
 
-        // The T-002 in-memory sinks record what the interaction outputs; replay (and live, until the real
-        // sinks land) thereby answers nothing to PostHog and opens no audio device.
-        var analyticsSink = new InMemoryAnalyticsSink();
+        // The T-002 in-memory sinks record what the interaction outputs; replay thereby answers nothing to
+        // PostHog (AN-01) and opens no audio device. Live sends analytics for real once a PostHog key ships.
+        IAnalyticsSink analyticsSink = options.IsReplay
+            ? new InMemoryAnalyticsSink()
+            : CreateLiveAnalyticsSink(settings, ref effectiveUserSettings, userSettingsStore, workerHttpClient);
         var textToSpeechSink = new InMemoryTextToSpeechSink();
         var fallbackSpeechSink = new InMemoryFallbackSpeechSink();
 
@@ -228,7 +230,7 @@ internal static class Program
             {
                 // ONB-02: the demo fires its own analytics event, so a report of a demo run proves the
                 // analytics sink recorded it — the stub's counterpart of ClickyAnalytics's onboarding_demo_triggered.
-                analyticsSink.TrackEvent("onboarding_demo_triggered");
+                analyticsSink.TrackEvent(new AnalyticsEvents().OnboardingDemoTriggered());
             }
             TracerRunReport report = await companionCoordinator.RunReplayAsync(replayScript);
             // --linger-ms keeps the cursor on screen so QA can photograph where it landed (parity spec PNT-04).
@@ -307,6 +309,28 @@ internal static class Program
             await Task.Delay(debugQuitAfter, timeProvider);
             ShutDownInOrder(application, shortcutMonitor, companionCoordinator);
         }
+    }
+
+    /// <summary>
+    /// The PostHog sink on the shared HttpClient, or, when appsettings.json has no PostHog key or host, the
+    /// in-memory sink, which sends nothing (logged once here). Windows has no PostHog SDK to keep an anonymous
+    /// id, so the first live launch generates one (a UUIDv7, as posthog-ios does) and persists it.
+    /// </summary>
+    private static IAnalyticsSink CreateLiveAnalyticsSink(
+        ClickySettings settings, ref CompanionSettings effectiveUserSettings, ClickyUserSettingsStore userSettingsStore, HttpClient sharedHttpClient)
+    {
+        if (string.IsNullOrWhiteSpace(settings.PostHogApiKey) || !Uri.TryCreate(settings.PostHogHost, UriKind.Absolute, out Uri? postHogHost))
+        {
+            ClickyLog.Write("analytics: no PostHog key or host in appsettings.json; events are not sent");
+            return new InMemoryAnalyticsSink();
+        }
+        if (effectiveUserSettings.AnalyticsDistinctId is null)
+        {
+            // Live takes no --settings-override, so the effective settings are exactly the loaded ones.
+            effectiveUserSettings = effectiveUserSettings with { AnalyticsDistinctId = Guid.CreateVersion7().ToString() };
+            userSettingsStore.Save(effectiveUserSettings);
+        }
+        return new PostHogAnalyticsSink(sharedHttpClient, postHogHost, settings.PostHogApiKey, effectiveUserSettings.AnalyticsDistinctId, ClickyLog.Write);
     }
 
     /// <summary>

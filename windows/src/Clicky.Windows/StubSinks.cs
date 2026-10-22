@@ -1,15 +1,20 @@
+using Clicky.Core;
+
 namespace Clicky.Windows;
 
 /// <summary>
-/// Seam 8 (parity spec section 8): where analytics events go. The real sink (T-044, WS-24) fire-and-forget
-/// POSTs each event to us.i.posthog.com; the app always records through this interface so the sink can be
-/// swapped per mode. In replay the in-memory implementation below is the sink, which is what guarantees
-/// "stubbed in replay, so nothing reaches PostHog" (parity spec report-table note).
+/// Seam 8 (parity spec section 8): where analytics events go. The real sink (<see cref="PostHogAnalyticsSink"/>,
+/// T-044) fire-and-forget POSTs each event to us.i.posthog.com; the app always records through this interface
+/// so the sink can be swapped per mode. In replay the in-memory implementation below is the sink, which is
+/// what guarantees "stubbed in replay, so nothing reaches PostHog" (parity spec report-table note).
 /// </summary>
 internal interface IAnalyticsSink
 {
-    /// <param name="eventProperties">Event properties per the AN-01 catalogue; null when the event has none.</param>
-    void TrackEvent(string eventName, IReadOnlyDictionary<string, string?>? eventProperties = null);
+    /// <param name="analyticsEvent">An event built by the AN-01 <see cref="AnalyticsEvents"/> catalogue.</param>
+    void TrackEvent(AnalyticsEvent analyticsEvent);
+
+    /// <summary>From here on events are sent under the identify's distinct id (the email) instead of the anonymous one.</summary>
+    void Identify(AnalyticsIdentify analyticsIdentify);
 
     /// <summary>Every event handed to the sink this session, in order; the report copies these.</summary>
     IReadOnlyList<AnalyticsEventReport> RecordedEvents { get; }
@@ -17,8 +22,7 @@ internal interface IAnalyticsSink
 
 /// <summary>
 /// The in-memory analytics sink (T-002 stub): records every event for the replay report and sends nothing
-/// anywhere. Live mode also runs this stub until T-044 lands, so no build phones PostHog before the real
-/// sink and its keys exist.
+/// anywhere. Replay always runs it, and so does live when appsettings.json has no PostHog key.
 /// </summary>
 internal sealed class InMemoryAnalyticsSink : IAnalyticsSink
 {
@@ -26,10 +30,13 @@ internal sealed class InMemoryAnalyticsSink : IAnalyticsSink
 
     IReadOnlyList<AnalyticsEventReport> IAnalyticsSink.RecordedEvents => RecordedEvents;
 
-    public void TrackEvent(string eventName, IReadOnlyDictionary<string, string?>? eventProperties = null) =>
-        RecordedEvents.Add(new AnalyticsEventReport(
-            eventName,
-            eventProperties is null ? null : new Dictionary<string, string?>(eventProperties)));
+    public void TrackEvent(AnalyticsEvent analyticsEvent) =>
+        RecordedEvents.Add(AnalyticsEventReport.FromAnalyticsEvent(analyticsEvent));
+
+    // The report has no identify field, and nothing is sent, so there is nothing to record.
+    public void Identify(AnalyticsIdentify analyticsIdentify)
+    {
+    }
 }
 
 /// <summary>

@@ -473,9 +473,9 @@
         "Given the vectors, when linux-core-tests runs, then all pass there."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/AssemblyAiTurnsGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-14 part 1. The plan lists WS-04, WS-07, WS-13 as dependencies, so this waits for the coordinator and mic tasks. Legacy terms ('makesomething', 'Learning Buddy') kept verbatim. Partial transcripts never drawn (STT-02). TranscriptionKeytermsGoldenVectorTests.cs sits beside the test_path file.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/22",
+      "dev_notes": "Core AssemblyAI token parser, wss URL+keyterms (11 base verbatim, dedupe case-insensitive, blank dropped), turn assembly (ascending join, formatted-not-overwritten, empty-not-stored, missing-order fallback). 141 Core. Deviations: conservative query escaping; no-token URL path dropped; raw Turn JSON decode + finalize (STT-04/06) later.",
       "qa_result": null
     },
     {
@@ -549,9 +549,9 @@
         "Given the vector, when linux-core-tests runs, then it passes there."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/CapturePlanGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-15 part 1. QA-matrix: ADR acceptance 7 (saved frames per monitor, non-black ratio logged).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/23",
+      "dev_notes": "capture-plan.json vector (cursor-first, exact labels, 1512x982->1280x831) + capture timeline in report + CaptureHappensAtSubmit (submit-time capture, none at press). Timing was already submit-time; this added the proof. Labels per Swift incl. single-monitor cursor-is-here variant. 128+70+1skip.",
       "qa_result": null
     },
     {
@@ -598,9 +598,9 @@
         "Given the existing point-tag.json and sse-stream.json vectors, when run, then PointTagGoldenVectorTests and SseStreamGoldenVectorTests stay green (CLA-03, PNT-01)."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/ClaudeRequestGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-16 part 1. G1, G5, G6 exist already and must stay green. System prompt from shared/prompts/companion-voice-response.txt.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/24",
+      "dev_notes": "ClaudeRequestBuilder: alternating history turns, images only last user turn, per-monitor [image,text] blocks, max_tokens 1024, stream true, PNG magic sniffing. claude-request vector; point-tag/sse vectors stayed green. History wiring through coordinator still later; cap already in CompanionSession.",
       "qa_result": null
     },
     {
@@ -647,9 +647,9 @@
         "Given tts-http-402.json, when mapped, then TtsRequestTests.NonSuccessMapsToFallback asserts the exact fallback string."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/TtsRequestTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-17 part 1 (seam 5). Authors shared/fixtures/parity/tts-ok.json, a generated tts-ok.mp3 and tts-http-402.json.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/25",
+      "dev_notes": "Core TTS: body (eleven_flash_v2_5, 0.5/0.75, audio/mpeg), blank no-call guard, non-2xx exact fallback. tts-http-402 fixture under shared/fixtures/parity per AC (plausible body, test uses status). tts-ok.mp3 staged for future harness. .NET/Swift whitespace edge noted.",
       "qa_result": null
     },
     {

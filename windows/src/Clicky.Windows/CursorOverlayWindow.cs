@@ -212,7 +212,7 @@ internal sealed class CursorOverlayWindow : Window
 
     private void RefreshCachedMonitorList(System.Drawing.Point referencePointPx)
     {
-        cachedMonitors = [.. DisplayMonitorEnumerator.EnumerateCursorMonitorFirst(referencePointPx)];
+        cachedMonitors = [.. DisplayMonitorEnumerator.EnumerateMonitors(referencePointPx)];
         MonitorListReadCount++;
     }
 

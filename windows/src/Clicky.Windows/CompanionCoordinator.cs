@@ -194,9 +194,10 @@ internal sealed partial class CompanionCoordinator(
             case CompanionSessionEffect.StopRecording:
                 Dispatch(new CompanionSessionEvent.TranscriptFinal(tracerTranscriptText), currentEventTMs);
                 break;
+            // CompanionManager.swift:520-524, 596: the screens are captured when the transcript is submitted, not at the press.
             case CompanionSessionEffect.StartChatRequest startChatRequest:
                 latestExchangeCancellation = new CancellationTokenSource();
-                latestExchangeTask = RunChatExchangeAsync(startChatRequest, latestExchangeCancellation.Token);
+                latestExchangeTask = RunChatExchangeAsync(startChatRequest, currentEventTMs, latestExchangeCancellation.Token);
                 break;
             case CompanionSessionEffect.PointAtElement pointAtElement:
                 latestPointingTask = interactionRunner.PointAtAsync(
@@ -214,13 +215,13 @@ internal sealed partial class CompanionCoordinator(
         }
     }
 
-    private async Task RunChatExchangeAsync(CompanionSessionEffect.StartChatRequest startChatRequest, CancellationToken cancellationToken)
+    private async Task RunChatExchangeAsync(CompanionSessionEffect.StartChatRequest startChatRequest, long submitTMs, CancellationToken cancellationToken)
     {
         TracerRunReport report = replayRunReport ?? interactionRunner.CreateReport();
         latestExchangeReport = report;
         try
         {
-            string? responseText = await interactionRunner.RunChatExchangeAsync(report, startChatRequest.Transcript, cancellationToken);
+            string? responseText = await interactionRunner.RunChatExchangeAsync(report, startChatRequest.Transcript, submitTMs, cancellationToken);
             if (responseText is not null)
             {
                 Dispatch(new CompanionSessionEvent.ResponseReady(startChatRequest.ChatRequestId, responseText), ElapsedTMs);

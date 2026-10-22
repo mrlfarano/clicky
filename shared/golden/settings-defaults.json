@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "seam": "settings-defaults",
+  "swiftAnchor": "leanring-buddy/CompanionManager.swift:111-150",
+  "description": "ONB-04 defaults and merge rules for the user settings file. Each case's input.userSettingsFileJson is the exact settings-file text; CompanionSettingsMerger.MergeUserSettingsFileContentsOverDefaults applies it over CompanionSettings.Defaults. expected.settings pins the full merged settings object with the persisted key names, expected.userSettingsFileWasCorrupt flags the Windows-only corrupt-file rule (adr-derived; UserDefaults has no corrupt state), and expected.unrecognizedUserSettingsValues lists keys this model does not know (e.g. written by a newer Clicky) that must be preserved, not rejected. macOS anchors are the UserDefaults reads at CompanionManager.swift:111-150 (shortcut options at BuddyDictationManager.swift:17-22; analyticsDistinctId is Windows-only, generated where the PostHog SDK would). Parity spec ONB-04, CLA-08; plan WS-12.",
+  "settingsFileKeys": [
+    "selectedClaudeModel",
+    "isClickyCursorEnabled",
+    "hasCompletedOnboarding",
+    "hasSubmittedEmail",
+    "pushToTalkShortcut",
+    "analyticsDistinctId"
+  ],
+  "cases": [
+    {
+      "id": "missing-key",
+      "branch": "missing-key-takes-default",
+      "note": "isClickyCursorEnabled and hasCompletedOnboarding are absent from the file, so they take their ONB-04 defaults (true and false); the other four keys are present and win.",
+      "input": {
+        "userSettingsFileJson": "{\"selectedClaudeModel\":\"claude-opus-4-6\",\"hasSubmittedEmail\":true,\"pushToTalkShortcut\":\"shiftControl\",\"analyticsDistinctId\":\"5f8c9b0d-2a41-4c67-9d3e-1b6a40e7c2f9\"}"
+      },
+      "expected": {
+        "settings": {
+          "selectedClaudeModel": "claude-opus-4-6",
+          "isClickyCursorEnabled": true,
+          "hasCompletedOnboarding": false,
+          "hasSubmittedEmail": true,
+          "pushToTalkShortcut": "shiftControl",
+          "analyticsDistinctId": "5f8c9b0d-2a41-4c67-9d3e-1b6a40e7c2f9"
+        },
+        "userSettingsFileWasCorrupt": false,
+        "unrecognizedUserSettingsValues": {}
+      }
+    },
+    {
+      "id": "corrupt-file",
+      "branch": "corrupt-file-uses-defaults",
+      "note": "Truncated JSON is unparseable, so every key falls back to its default and the corrupt flag is set; the file is rewritten valid on the next settings change (ONB-04, adr-derived).",
+      "input": {
+        "userSettingsFileJson": "{\"selectedClaudeModel\": \"claude-opus-4-6\", \"hasSub"
+      },
+      "expected": {
+        "settings": {
+          "selectedClaudeModel": "claude-sonnet-4-6",
+          "isClickyCursorEnabled": true,
+          "hasCompletedOnboarding": false,
+          "hasSubmittedEmail": false,
+          "pushToTalkShortcut": "controlOption",
+          "analyticsDistinctId": null
+        },
+        "userSettingsFileWasCorrupt": true,
+        "unrecognizedUserSettingsValues": {}
+      }
+    },
+    {
+      "id": "unknown-key",
+      "branch": "unknown-key-preserved",
+      "note": "hasScreenContentPermission is dropped on Windows (audit D4) and futurePanelSetting stands in for a key a newer Clicky might add; both are preserved with their values instead of being rejected.",
+      "input": {
+        "userSettingsFileJson": "{\"hasCompletedOnboarding\":true,\"hasScreenContentPermission\":true,\"futurePanelSetting\":{\"density\":2,\"theme\":\"dark\"}}"
+      },
+      "expected": {
+        "settings": {
+          "selectedClaudeModel": "claude-sonnet-4-6",
+          "isClickyCursorEnabled": true,
+          "hasCompletedOnboarding": true,
+          "hasSubmittedEmail": false,
+          "pushToTalkShortcut": "controlOption",
+          "analyticsDistinctId": null
+        },
+        "userSettingsFileWasCorrupt": false,
+        "unrecognizedUserSettingsValues": {
+          "hasScreenContentPermission": true,
+          "futurePanelSetting": { "density": 2, "theme": "dark" }
+        }
+      }
+    }
+  ]
+}

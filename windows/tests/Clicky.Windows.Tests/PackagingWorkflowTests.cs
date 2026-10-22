@@ -4,7 +4,8 @@ using Xunit;
 namespace Clicky.Windows.Tests;
 
 /// <summary>
-/// T-013 / T-014 (WS-08): pins the Velopack packaging and installed-copy contract. These
+/// T-013 / T-014 (WS-08) and T-015 (WS-09): pins the Velopack packaging, signing and
+/// installed-copy contract. These
 /// tests read the sources that GitHub Actions executes (ci.yml, Program.cs, the csproj), so
 /// they prove the workflow's content on any machine. The pack, the silent install and the
 /// second package apply only run on the windows-build runner; that half of the contract is
@@ -138,6 +139,83 @@ public sealed class PackagingWorkflowTests
         // file fails the build.
         Assert.Contains("Get-FileHash", installedReplayStep);
         Assert.Contains("Compare-Object", installedReplayStep);
+    }
+
+    [Fact]
+    public void SignStepSkipsWithoutSecrets()
+    {
+        // T-015 acceptance 2: fork PRs receive no secrets, so the Sign step must take a
+        // green skip path that logs exactly 'signing: SKIPPED', and nothing downstream may
+        // try to sign or verify.
+        string signStep = CiWorkflowSource.WindowsBuildStep("Sign");
+
+        Assert.Contains("Write-Host \"signing: SKIPPED\"", signStep);
+        Assert.Contains("\"mode=skipped\" >> $env:GITHUB_OUTPUT", signStep);
+        string skipBranch = signStep[signStep.IndexOf("\"mode=skipped\"", StringComparison.Ordinal)..];
+        Assert.Contains("exit 0", skipBranch);
+        Assert.DoesNotContain("exit 1", skipBranch);
+
+        // The mode comes only from secrets, so a fork (no secrets) can only reach the skip branch.
+        foreach (string signingSecretName in new[]
+                 {
+                     "TRUSTED_SIGNING_ENDPOINT", "TRUSTED_SIGNING_ACCOUNT_NAME", "TRUSTED_SIGNING_CERTIFICATE_PROFILE",
+                     "AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET",
+                     "SIGNING_CERT_PFX_BASE64", "SIGNING_PASSWORD",
+                 })
+        {
+            Assert.Contains($"{signingSecretName}: ${{{{ secrets.{signingSecretName} }}}}", signStep);
+        }
+
+        // Skipped mode adds no vpk signing arguments, and verify-signature does not run.
+        string packageStep = CiWorkflowSource.WindowsBuildStep("Package");
+        Assert.Contains("SIGNING_MODE: ${{ steps.sign.outputs.mode }}", packageStep);
+        Assert.Contains("@vpkSigningArguments", packageStep);
+        Assert.Contains("if: steps.sign.outputs.mode != 'skipped'", CiWorkflowSource.WindowsBuildStep("verify-signature"));
+    }
+
+    [Fact]
+    public void BothSigningPathsTimestampWithSha256()
+    {
+        string packageStep = CiWorkflowSource.WindowsBuildStep("Package");
+
+        // Trusted Signing: vpk's embedded signtool adds /fd SHA256 /tr <acs timestamp> /td SHA256.
+        Assert.Contains("'trusted-signing' { '--azureTrustedSignFile'", packageStep);
+        // OV fallback: explicit signtool parameters with an RFC 3161 timestamp.
+        Assert.Contains("/fd SHA256 /tr http://timestamp.digicert.com /td SHA256", packageStep);
+    }
+
+    [Fact]
+    public void VerifySignatureChecksAllThreeBinariesBeforeDefenderScanAndInstall()
+    {
+        // T-015 acceptance 1.
+        string verifySignatureStep = CiWorkflowSource.WindowsBuildStep("verify-signature");
+
+        Assert.Contains("Get-AuthenticodeSignature", verifySignatureStep);
+        Assert.Contains("$signature.Status -ne 'Valid'", verifySignatureStep);
+        Assert.Contains("$null -eq $signature.TimeStamperCertificate", verifySignatureStep);
+        Assert.Contains("$signerSubject -ne $env:SIGNING_EXPECTED_SUBJECT", verifySignatureStep);
+        Assert.Contains("'Clicky.exe' =", verifySignatureStep);
+        Assert.Contains("'Update.exe' =", verifySignatureStep);
+        Assert.Contains("'Setup.exe' =", verifySignatureStep);
+
+        // Signed binaries are what gets scanned and installed.
+        int verifySignatureStepIndex = CiWorkflowSource.WindowsBuildStepIndex("verify-signature");
+        Assert.True(CiWorkflowSource.WindowsBuildStepIndex("Sign") < CiWorkflowSource.WindowsBuildStepIndex("Package"));
+        Assert.True(CiWorkflowSource.WindowsBuildStepIndex("Package") < verifySignatureStepIndex);
+        Assert.True(verifySignatureStepIndex < CiWorkflowSource.WindowsBuildStepIndex("Defender scan of packaged output"));
+        Assert.True(verifySignatureStepIndex < CiWorkflowSource.WindowsBuildStepIndex("installed-replay"));
+    }
+
+    [Fact]
+    public void PfxPlaceholderStepIsGoneAndNoEvPathExists()
+    {
+        // T-015 acceptance 3.
+        string workflowText = File.ReadAllText(RepositoryFile(".github", "workflows", "ci.yml"));
+
+        Assert.DoesNotContain("Sign (phase-gated", workflowText);
+        Assert.DoesNotContain("SIGNING_CERT_PASSWORD", workflowText);
+        Assert.DoesNotContain("Windows Kits", workflowText);
+        Assert.DoesNotMatch(@"\bEV\b|(?i:extended validation)", workflowText);
     }
 
     private static string VelopackNuGetVersion()

@@ -16,12 +16,14 @@ namespace Clicky.Windows;
 /// File whose bytes are the response body, resolved against the manifest's directory. A ".sse" file is
 /// served as a paced Server-Sent-Events stream (the /chat replay path), any other file as one fixed body.
 /// </param>
+/// <param name="ConnectFailures">How many first attempts on this route fail as a connect failure before it answers (G2 retry).</param>
 internal sealed record ReplayManifestRoute(
     string RoutePath,
     int Status,
     IReadOnlyDictionary<string, string> Headers,
     string? Body,
-    string? BodyFilePath)
+    string? BodyFilePath,
+    int ConnectFailures = 0)
 {
     /// <summary>True when the route's bodyFile holds SSE events that must drip in one event per read, like the live stream.</summary>
     public bool ServesPacedSseStream =>
@@ -116,7 +118,7 @@ internal sealed record ReplayManifest(
         {
             throw new CommandLineUsageException($"Replay manifest {manifestFilePath}: route '{routePath}' must be an object.");
         }
-        RejectUnknownProperties(manifestFilePath, $"route '{routePath}'", routeObject, ["status", "headers", "body", "bodyFile"]);
+        RejectUnknownProperties(manifestFilePath, $"route '{routePath}'", routeObject, ["status", "headers", "body", "bodyFile", "connectFailures"]);
 
         int responseStatus = DefaultResponseStatus;
         if (routeObject.ContainsKey("status"))
@@ -171,7 +173,18 @@ internal sealed record ReplayManifest(
             bodyFilePath = ResolveExistingFile(manifestFilePath, manifestDirectory, (string)bodyFileValue!, $"route '{routePath}' bodyFile");
         }
 
-        return new ReplayManifestRoute(routePath, responseStatus, responseHeaders, body, bodyFilePath);
+        int connectFailures = 0;
+        if (routeObject.ContainsKey("connectFailures"))
+        {
+            if (routeObject["connectFailures"] is not JsonValue connectFailuresValue
+                || !connectFailuresValue.TryGetValue<int>(out connectFailures)
+                || connectFailures < 0)
+            {
+                throw new CommandLineUsageException($"Replay manifest {manifestFilePath}: route '{routePath}' connectFailures must be a non-negative number.");
+            }
+        }
+
+        return new ReplayManifestRoute(routePath, responseStatus, responseHeaders, body, bodyFilePath, connectFailures);
     }
 
     /// <summary>Relative paths resolve against the manifest's directory, so a manifest and its fixtures move together.</summary>

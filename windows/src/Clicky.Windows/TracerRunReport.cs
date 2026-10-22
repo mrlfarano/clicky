@@ -57,6 +57,15 @@ internal sealed class TracerRunReport
     public List<TtsRequestReport> TtsRequests { get; } = [];
     public List<string> FallbackUtterances { get; } = [];
 
+    /// <summary>The reducer's conversation history when the report was written (CLA-06: a failed reply adds none).</summary>
+    public List<ConversationExchange> ConversationHistory { get; } = [];
+
+    /// <summary>
+    /// Every request the replay handler received, in arrival order, answered or not: the TLS warm-up HEAD and
+    /// each /chat attempt, so a retry shows as a second POST (CLA-06/G2/G3). Empty in live mode.
+    /// </summary>
+    public List<HttpRequestReport> HttpRequests { get; } = [];
+
     /// <summary>
     /// The user settings this run actually used: the settings the app loaded with every --settings-override
     /// pair applied on top. Shown even when nothing was overridden, so a report always states its settings
@@ -112,6 +121,9 @@ internal sealed record VoiceStateTimelineEntry(long TMs, string State);
 internal sealed record AnalyticsEventReport(
     string Name,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, string?>? Properties);
+
+/// <summary>One request as the replay handler received it: the HTTP method and the URL's absolute path.</summary>
+internal sealed record HttpRequestReport(string Method, string Path);
 
 /// <summary>One text handed to the TTS sink to be spoken; the /tts request body the real sink would send.</summary>
 internal sealed record TtsRequestReport(string Text);

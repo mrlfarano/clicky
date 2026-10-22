@@ -20,3 +20,6 @@ SetWindowPos
 SetWindowsHookEx
 UnhookWindowsHookEx
 WINDOW_EX_STYLE
+SendMessage
+SetThreadDpiAwarenessContext
+DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2

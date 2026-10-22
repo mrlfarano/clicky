@@ -29,6 +29,14 @@ internal sealed class TracerRunReport
     public List<DisplayTimelineEntry> DisplayTimeline { get; } = [];
     public long? LastEventTMs { get; set; }
     public PointReport? Point { get; set; }
+
+    /// <summary>
+    /// How many SetWindowPos calls the overlay issued for its own placement (WPF's internal calls
+    /// excluded). Every call follows a real placement change; stationary rendering frames issue none —
+    /// the small-moving-window design's answer to audit risk 1 (T-004).
+    /// </summary>
+    public int SetWindowPosCalls { get; set; }
+
     public List<MonitorReport> Monitors { get; } = [];
     public List<string> CaptureErrors { get; } = [];
     public JsonNode? RequestBody { get; set; }

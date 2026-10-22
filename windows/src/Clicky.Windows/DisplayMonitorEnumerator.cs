@@ -8,8 +8,13 @@ using Windows.Win32.UI.HiDpi;
 namespace Clicky.Windows;
 
 /// <param name="Bounds">rcMonitor in physical pixels (Per-Monitor V2), top-left origin.</param>
-/// <param name="EffectiveDpi">Logged for mixed-DPI QA runs; the mapping itself only needs <paramref name="Bounds"/>.</param>
-internal sealed record DisplayMonitor(HMONITOR Handle, string DeviceName, PhysicalPixelRect Bounds, uint EffectiveDpi, bool IsCursorMonitor);
+/// <param name="WorkArea">rcWork in physical pixels: rcMonitor minus the taskbar band — the rectangle OverlayPlacement flips and clamps the bubble inside (T-003/T-004).</param>
+/// <param name="EffectiveDpi">Logged for mixed-DPI QA runs; the overlay's placement converts DIPs with <see cref="DpiScale"/>.</param>
+internal sealed record DisplayMonitor(HMONITOR Handle, string DeviceName, PhysicalPixelRect Bounds, uint EffectiveDpi, bool IsCursorMonitor, PhysicalPixelRect WorkArea)
+{
+    /// <summary>The monitor's DPI as a scale factor (1.0 at 96 DPI, 1.5 at 150%); 1.0 when the DPI could not be read.</summary>
+    public double DpiScale => EffectiveDpi == 0 ? 1.0 : EffectiveDpi / 96.0;
+}
 
 internal static class DisplayMonitorEnumerator
 {
@@ -33,7 +38,7 @@ internal static class DisplayMonitorEnumerator
         }
 
         return monitorHandles
-            .Select(monitorHandle => DescribeMonitor(monitorHandle, isCursorMonitor: monitorHandle == cursorMonitorHandle))
+            .Select(monitorHandle => DescribeMonitorForHandle(monitorHandle, isCursorMonitor: monitorHandle == cursorMonitorHandle))
             // OrderBy is stable, so the non-cursor monitors keep their enumeration order.
             .OrderBy(monitor => monitor.IsCursorMonitor ? 0 : 1)
             .ToList();
@@ -41,10 +46,15 @@ internal static class DisplayMonitorEnumerator
 
     public static string ReadDeviceName(HMONITOR monitorHandle) => ReadMonitorInfo(monitorHandle).szDevice.ToString();
 
-    private static DisplayMonitor DescribeMonitor(HMONITOR monitorHandle, bool isCursorMonitor)
+    /// <summary>
+    /// Full description of one monitor handle. Internal so the overlay can describe the monitor a device-name
+    /// lookup fell back to (CursorOverlayWindow.ResolveTargetMonitor).
+    /// </summary>
+    internal static DisplayMonitor DescribeMonitorForHandle(HMONITOR monitorHandle, bool isCursorMonitor)
     {
         MONITORINFOEXW monitorInfo = ReadMonitorInfo(monitorHandle);
         RECT monitorRect = monitorInfo.monitorInfo.rcMonitor;
+        RECT workAreaRect = monitorInfo.monitorInfo.rcWork;
         uint effectiveDpi = PInvoke.GetDpiForMonitor(monitorHandle, MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI, out uint dpiX, out _).Succeeded
             ? dpiX
             : 0;
@@ -53,7 +63,8 @@ internal static class DisplayMonitorEnumerator
             monitorInfo.szDevice.ToString(),
             new PhysicalPixelRect(monitorRect.left, monitorRect.top, monitorRect.right - monitorRect.left, monitorRect.bottom - monitorRect.top),
             effectiveDpi,
-            isCursorMonitor);
+            isCursorMonitor,
+            new PhysicalPixelRect(workAreaRect.left, workAreaRect.top, workAreaRect.right - workAreaRect.left, workAreaRect.bottom - workAreaRect.top));
     }
 
     private static unsafe MONITORINFOEXW ReadMonitorInfo(HMONITOR monitorHandle)

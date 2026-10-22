@@ -183,6 +183,7 @@ public sealed partial class CoordinatorReplayTests
             CompanionSettings.Defaults,
             new ClaudeClient(failClosedHttpClient, new Uri("http://replay.clicky.invalid/chat"), CompanionSettings.DefaultClaudeModel, TimeProvider.System),
             [],
+            [],
             overlayWindow,
             new MonitorScreenCapturer(),
             analyticsSink,

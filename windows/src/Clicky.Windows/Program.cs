@@ -192,6 +192,29 @@ internal static class Program
         // Created here, at startup, so its TLS warm-up HEAD goes out before the first press (G3).
         var claudeClient = new ClaudeClient(workerHttpClient, chatEndpoint, effectiveClaudeModel, timeProvider);
 
+        // Live, every AssemblyAI session connects through one invoker for the life of the app (the AGENTS.md
+        // lesson, AssemblyAIStreamingTranscriptionProvider.swift:30-34). Replay plays the manifest's recorded socket
+        // instead, and a replay that stages none keeps the stub recorder and its tracer prompt.
+        ReplayWebSocketConnector? replayWebSocketConnector = replayManifest?.AssemblyAiSocketFramesFilePath is string framesFilePath
+            ? new ReplayWebSocketConnector(framesFilePath, timeProvider)
+            : null;
+        IWebSocketConnector? webSocketConnector = replayManifest is null
+            ? new SharedInvokerWebSocketConnector(new HttpMessageInvoker(new SocketsHttpHandler()))
+            : replayWebSocketConnector;
+        AssemblyAiStreamingTranscriptionProvider? transcriptionProvider = webSocketConnector is null
+            ? null
+            // Relative to /chat, so the Worker's /transcribe-token keeps any path prefix of WorkerBaseUrl.
+            : new AssemblyAiStreamingTranscriptionProvider(workerHttpClient, new Uri(chatEndpoint, "transcribe-token"), webSocketConnector, timeProvider);
+        // Opened on the first press, not at startup: the live device-change notifier needs the audio service, which a
+        // headless runner may lack. PublicationOnly retries a failed open on the next press instead of caching it.
+        Lazy<MicrophoneCapturePipeline>? microphoneCapturePipeline = transcriptionProvider is null
+            ? null
+            : new Lazy<MicrophoneCapturePipeline>(
+                () => replayManifest is null
+                    ? new MicrophoneCapturePipeline(new NAudioMicrophoneCaptureSourceFactory(), new NAudioMicrophoneDeviceChangeNotifier(), transcriptionProvider)
+                    : new MicrophoneCapturePipeline(new ReplayMicrophoneCaptureSourceFactory(timeProvider), new ReplayMicrophoneDeviceChangeNotifier(), transcriptionProvider),
+                LazyThreadSafetyMode.PublicationOnly);
+
         // The T-002 in-memory sinks record what the interaction outputs; replay (and live, until the real
         // sinks land) thereby answers nothing to PostHog and opens no audio device.
         var analyticsSink = new InMemoryAnalyticsSink();
@@ -204,6 +227,7 @@ internal static class Program
             effectiveUserSettings,
             claudeClient,
             replayHttpMessageHandler?.RecordedRequests ?? [],
+            replayWebSocketConnector?.RecordedFrames ?? [],
             overlayWindow,
             new MonitorScreenCapturer(),
             analyticsSink,
@@ -219,7 +243,9 @@ internal static class Program
             analyticsSink,
             textToSpeechSink,
             fallbackSpeechSink,
-            companionVoiceStateReporter);
+            companionVoiceStateReporter,
+            transcriptionProvider,
+            microphoneCapturePipeline);
 
         if (options.IsReplay)
         {

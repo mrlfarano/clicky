@@ -81,6 +81,12 @@ public abstract record CompanionSessionEvent
     /// <summary>Finalization ended, by the provider's final transcript or the fallback timer (BuddyDictationManager.swift:581-606).</summary>
     public sealed record TranscriptFinal(string TranscriptText) : CompanionSessionEvent;
 
+    /// <summary>
+    /// The session failed to start or errored with nothing to submit, so dictation resets without a transcript
+    /// (BuddyDictationManager.swift:465-473, 571-578; parity spec STT-08).
+    /// </summary>
+    public sealed record DictationCancelled : CompanionSessionEvent;
+
     /// <summary>The full streamed reply to the chat request with this id, POINT tag included.</summary>
     public sealed record ResponseReady(int ChatRequestId, string FullResponseText) : CompanionSessionEvent;
 
@@ -178,6 +184,9 @@ public static class CompanionSession
             Transition(state with { DictationPhase = CompanionDictationPhase.Recording, VoiceState = CompanionVoiceState.Listening }),
         CompanionSessionEvent.TranscriptFinal transcriptFinal when state.DictationPhase == CompanionDictationPhase.FinalizingTranscript =>
             TranscriptFinal(state, transcriptFinal.TranscriptText),
+        // A press cleared any reply before dictation began, so idle is all that is left.
+        CompanionSessionEvent.DictationCancelled when state.DictationPhase != CompanionDictationPhase.None =>
+            Transition(state with { DictationPhase = CompanionDictationPhase.None, VoiceState = CompanionVoiceState.Idle }),
         CompanionSessionEvent.ResponseReady responseReady
             when state.ResponsePhase == CompanionResponsePhase.AwaitingChatResponse
                 && responseReady.ChatRequestId == state.LatestChatRequestId =>

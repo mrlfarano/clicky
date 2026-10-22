@@ -149,7 +149,13 @@ public sealed class OverlayMoveTests
     private static void AssertWrittenReportSetWindowPosCallsIs(int expectedSetWindowPosCalls)
     {
         string stationaryReportPath = Path.Combine(Path.GetTempPath(), $"clicky-overlay-move-report-{Guid.NewGuid():N}.json");
-        var stationaryReport = new TracerRunReport { Mode = "in-process overlay-move" };
+        // EffectiveSettings is required on every report (T-002); this harness report carries defaults,
+        // which the setWindowPosCalls assertion never reads.
+        var stationaryReport = new TracerRunReport
+        {
+            Mode = "in-process overlay-move",
+            EffectiveSettings = EffectiveSettingsReport.FromCompanionSettings(CompanionSettings.Defaults),
+        };
         stationaryReport.SetWindowPosCalls = expectedSetWindowPosCalls;
         stationaryReport.WriteTo(stationaryReportPath);
         try

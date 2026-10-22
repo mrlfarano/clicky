@@ -402,9 +402,9 @@
         "Given appsettings.json, when read, then SettingsPersistenceTests.ShipTimeKeysPresent asserts WorkerBaseUrl, UpdateFeedUrl, PostHog host/key and model list exist, and the version comes from the assembly (A7)."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/SettingsPersistenceTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-12 part 2. Atomic write = temp + File.Replace. QA-matrix: file contents before/after restart.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/8",
+      "dev_notes": "Merged after CI green on PR #8 (112/112 clean rebuild; first wave-2 merge, landed clean). ClickyUserSettingsStore: load+merge via T-017 Core merger, atomic temp+File.Replace (plain rename first write), unrecognized keys round-trip, CLICKY_DATA_DIR honored, test-only interrupt seam between temp write and swap. Ship-time appsettings split per WS-12: WorkerBaseUrl/UpdateFeedUrl(empty=off)/PostHog host+key/ClaudeModels; ClaudeModel+PushToTalkShortcut moved to user settings; version from assembly (A7). Deviations: --set-setting CLI hook (no UI yet; process-level AC trigger, T-016 --debug-crash precedent; rejects combining with replay/record/debug-crash); replay harness isolated to throwaway CLICKY_DATA_DIR (dev settings would flake replay + model assertion updated to CompanionSettings.DefaultClaudeModel).",
       "qa_result": null
     },
     {

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Windows;
 using Clicky.Core;
+using Velopack;
 
 namespace Clicky.Windows;
 
@@ -15,6 +16,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] commandLineArguments)
     {
+        // Velopack requires this call before any other code in the process: it handles the
+        // installer/update hook arguments (e.g. --veloapp-install) and may exit right here,
+        // before the WPF Application exists. It must stay the first statement of Main;
+        // PackagingWorkflowTests.VelopackIsFirstLineOfMain pins that.
+        VelopackApp.Build().Run();
+
         ClickyCommandLineOptions options;
         ClickySettings settings;
         string systemPrompt;

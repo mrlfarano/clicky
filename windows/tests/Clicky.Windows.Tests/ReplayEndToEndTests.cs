@@ -8,6 +8,7 @@ namespace Clicky.Windows.Tests;
 /// Screen capture runs for real, so on a runner where Windows.Graphics.Capture is unavailable the request
 /// simply carries fewer images; the assertions below allow for that through the report's captureErrors.
 /// </summary>
+[Collection(ClickyProcessReplayCollection.Name)]
 public sealed class ReplayEndToEndTests
 {
     private const string PointBasicSpokenText = "that's the save button up in the toolbar. click it and you're done.";

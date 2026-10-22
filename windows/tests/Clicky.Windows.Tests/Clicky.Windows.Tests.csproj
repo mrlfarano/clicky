@@ -9,14 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit.v3" Version="3.1.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Only for build order: the tests launch Clicky.exe as a separate process and never load its assembly. -->
-    <ProjectReference Include="..\..\src\Clicky.Windows\Clicky.Windows.csproj" ReferenceOutputAssembly="false" />
+    <!-- The replay e2e tests still launch Clicky.exe as a separate process; only ReplayManifestTests loads
+         the shell assembly in-process, to arm the replay handler's timer on a FakeTimeProvider (WS-04). -->
+    <ProjectReference Include="..\..\src\Clicky.Windows\Clicky.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -30,6 +30,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lets Clicky.Windows.Tests construct the internal replay harness in-process (ReplayManifestTests drives
+         ReplayHttpMessageHandler with a FakeTimeProvider); the replay e2e tests still run Clicky.exe itself. -->
+    <InternalsVisibleTo Include="Clicky.Windows.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- Seam 10: the system prompt is shared with the Mac app as a file, not a string literal. -->
     <None Include="..\..\..\shared\prompts\companion-voice-response.txt" Link="prompts\companion-voice-response.txt" CopyToOutputDirectory="PreserveNewest" />

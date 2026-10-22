@@ -28,7 +28,8 @@ internal sealed class TracerInteractionRunner(
         var report = new TracerRunReport
         {
             Mode = options.IsReplay ? "replay" : "live",
-            Fixture = options.ReplayFixturePath,
+            // A manifest run names the manifest; a single-fixture run names the .sse file.
+            Fixture = options.ReplayManifestPath ?? options.ReplayFixturePath,
         };
         try
         {

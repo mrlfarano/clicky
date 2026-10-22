@@ -6,9 +6,8 @@ namespace Clicky.Windows;
 
 /// <summary>
 /// One scripted input event of a --script file: a push-to-talk transition due at a virtual-clock time,
-/// in milliseconds since the replay interaction started. T-002's stub delivers the event onto that clock
-/// and records the voice-state change it causes; T-012 (WS-07) rewires the same events into the session
-/// coordinator so a scripted press cancels an in-flight response like a real one does.
+/// in milliseconds since the replay interaction started. CompanionCoordinator delivers the event onto that
+/// clock into the session reducer, so a scripted press cancels an in-flight response like a real one does.
 /// </summary>
 internal sealed record ReplayScriptEvent(long TMs, PushToTalkTransition Transition);
 

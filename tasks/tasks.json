@@ -446,9 +446,9 @@
         "Given E_ACCESSDENIED from a fake IAudioClient.Initialize, when probed, then MicPermissionTests.AccessDeniedMapsToDenied asserts state denied."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/MicPermissionTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-13 part 2 (F4 spike: AppCapability.Create('microphone').CheckAccess(), fall back to E_ACCESSDENIED). NAudio WasapiCapture shared mode. MicCaptureReplayTests live in windows/tests/Clicky.Windows.Tests/MicCaptureReplayTests.cs. QA-matrix: PNL-04 on the VM - toggle the desktop-app mic privacy switch, detected within 1.5 s both ways.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/10",
+      "dev_notes": "Merged after CI green on PR #10. NAudio.Wasapi 2.2.1 shared-mode capture (audit F1 approved equivalent; package id corrected from plan namespace name NAudio.CoreAudioApi), IMMNotificationClient default-device reopen (same-format byte-continuous, 64000B exact), MicrophonePermissionDetector in Core with injected clock - flips within 1500ms both directions (AppCapability on 19041+ with E_ACCESSDENIED trial-Initialize fallback per F4). Fake-source tests (160000B+-1%/5s) keep CI honest with no mic; live WASAPI probe compiles but is VM-QA evidence (PNL-04). Not yet wired into live mode (T-021+ per plan; T-019 precedent). WaitUntilAsync wall-clock helper only for continuation scheduling; all timestamps from virtual clock.",
       "qa_result": null
     },
     {

@@ -125,4 +125,71 @@ public sealed class ReplayEndToEndTests
         Assert.InRange((double)point["hotspotPx"]!["x"]!, expectedHotspotX - HotspotTolerancePx, expectedHotspotX + HotspotTolerancePx);
         Assert.InRange((double)point["hotspotPx"]!["y"]!, expectedHotspotY - HotspotTolerancePx, expectedHotspotY + HotspotTolerancePx);
     }
+
+    // T-004: the content-sized moving window is positioned so the glyph's tip lands exactly on the mapped
+    // target (OverlayPlacement's PNT-04 decision) — the read-back hotspot equals the target with no
+    // tolerance at all, on both quarter-screen fixtures.
+    [Theory]
+    [InlineData("point-quarter-screen1.sse")]
+    [InlineData("point-quarter-screen2.sse")]
+    public async Task HotspotPxEqualsTargetPx(string fixtureFileName)
+    {
+        ReplayRun replayRun = await ClickyReplayProcess.RunAsync(fixtureFileName);
+        JsonNode report = replayRun.Report;
+        Assert.True(replayRun.ExitCode == 0, $"exit code {replayRun.ExitCode}. Output:\n{replayRun.ProcessOutput}");
+
+        JsonNode point = report["point"]!;
+        Assert.Equal((int)point["targetPx"]!["x"]!, (int)point["hotspotPx"]!["x"]!);
+        Assert.Equal((int)point["targetPx"]!["y"]!, (int)point["hotspotPx"]!["y"]!);
+    }
+
+    // T-004 / parity PNT-05: with a single moving window, "the buddy appears only on monitor K" reduces to
+    // the overlay's monitor being the one the tag named. With fewer monitors than the tag names, the point
+    // falls back to the cursor's monitor (parity spec PNT-02).
+    [Theory]
+    [InlineData("point-quarter-screen1.sse", 1)]
+    [InlineData("point-quarter-screen2.sse", 2)]
+    public async Task MonitorDeviceMatchesTarget(string fixtureFileName, int taggedScreenNumber)
+    {
+        ReplayRun replayRun = await ClickyReplayProcess.RunAsync(fixtureFileName);
+        JsonNode report = replayRun.Report;
+        Assert.True(replayRun.ExitCode == 0, $"exit code {replayRun.ExitCode}. Output:\n{replayRun.ProcessOutput}");
+
+        JsonArray monitors = report["monitors"]!.AsArray();
+        int expectedMonitorIndex = taggedScreenNumber <= monitors.Count
+            ? taggedScreenNumber - 1
+            : monitors.ToList().FindIndex(monitor => (bool)monitor!["isCursorMonitor"]!);
+
+        Assert.Equal((string?)monitors[expectedMonitorIndex]!["device"], (string?)report["point"]!["monitorDevice"]);
+    }
+
+    // T-004 / parity CLA-04, ADR 001 acceptance 9: the first token must be visible within 300 ms of its
+    // event being delivered, and the bubble must keep streaming afterwards. The 300 ms is measured from the
+    // delta's delivery (tMs - eventTMs): the absolute tMs cannot be bounded by 300 ms with --event-delay-ms
+    // 200, because point-basic.sse's first text delta is its 4th SSE event, so it arrives ~600 ms after the
+    // first line even though the render itself takes only a few ms.
+    [Fact]
+    public async Task StreamingBubbleVisibleWithin300ms()
+    {
+        ReplayRun replayRun = await ClickyReplayProcess.RunAsync("point-basic.sse", "--event-delay-ms", "200");
+        JsonNode report = replayRun.Report;
+        Assert.True(replayRun.ExitCode == 0, $"exit code {replayRun.ExitCode}. Output:\n{replayRun.ProcessOutput}");
+
+        JsonArray displayTimeline = report["displayTimeline"]!.AsArray();
+        long lastEventTMs = (long)report["lastEventTMs"]!;
+        JsonNode firstDisplayChange = displayTimeline[0]!;
+        long firstRenderLatencyMs = (long)firstDisplayChange["tMs"]! - (long)firstDisplayChange["eventTMs"]!;
+
+        Assert.True(firstRenderLatencyMs <= 300, $"first token took {firstRenderLatencyMs} ms to render after delivery");
+        Assert.True((long)firstDisplayChange["tMs"]! < lastEventTMs, "first token rendered only after the last event");
+        // The bubble keeps streaming while the interaction is still processing: voiceState reaches the report
+        // with T-002's voiceStateTimeline, and until then the still-arriving stream is the observable half
+        // of "processing", so every delta must extend the bubble before the final event, each within 300 ms.
+        Assert.All(displayTimeline, timelineEntry => Assert.True(
+            (long)timelineEntry!["tMs"]! - (long)timelineEntry!["eventTMs"]! <= 300,
+            $"bubble update at tMs {(long)timelineEntry!["tMs"]!} rendered slower than 300 ms after its event"));
+        Assert.True(
+            displayTimeline.Count(timelineEntry => (long)timelineEntry!["tMs"]! < lastEventTMs) >= 2,
+            "the bubble did not keep streaming while the stream was still arriving");
+    }
 }

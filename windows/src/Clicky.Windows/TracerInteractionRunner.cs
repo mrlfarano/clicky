@@ -41,6 +41,8 @@ internal sealed class TracerInteractionRunner(
             report.ExitCode = 1;
             ClickyLog.Write($"interaction failed: {interactionException}");
         }
+        // The overlay's own SetWindowPos count, for the stationary-frames-to-zero-calls guarantee (T-004).
+        report.SetWindowPosCalls = overlayWindow.SetWindowPosCallCount;
         report.WriteTo(options.ReportPath);
         ClickyLog.Write($"report written: {options.ReportPath}");
         return report;
@@ -261,7 +263,9 @@ internal sealed class TracerInteractionRunner(
             (int)Math.Round(mappedTarget.Y, MidpointRounding.AwayFromZero));
 
         // No bezier flight in the tracer bullet: the cursor jumps straight to the target (ADR 001 tracer item 6).
-        overlayWindow.MoveHotspotTo(targetPx);
+        // The overlay matches the monitor by device name and places its content-sized window through Core's
+        // OverlayPlacement, so the glyph's tip (the hotspot) lands exactly on the target (T-003/T-004).
+        overlayWindow.PointAt(targetPx, targetMonitor.DeviceName);
         // Let a WM_DPICHANGED from crossing monitors, and the re-positioning after it, finish before reading back.
         await overlayWindow.Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle, cancellationToken);
 

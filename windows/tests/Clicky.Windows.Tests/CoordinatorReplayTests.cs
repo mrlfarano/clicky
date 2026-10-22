@@ -189,8 +189,8 @@ public sealed partial class CoordinatorReplayTests
             textToSpeechSink,
             fallbackSpeechSink);
         return new CompanionCoordinator(
-            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink, fallbackSpeechSink,
-            new CompanionVoiceStateReporter());
+            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink,
+            fallbackSpeechSink, new SilentReplayAudioOutput(TimeProvider.System), new CompanionVoiceStateReporter());
     }
 
     [GeneratedRegex(@"voiceState\w*\s*=(?!=)", RegexOptions.IgnoreCase)]

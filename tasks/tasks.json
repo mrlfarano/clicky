@@ -316,9 +316,9 @@
         "Given settings.json, logs and crashes beside the current folder, when a second package is applied, then PackagingWorkflowTests.UserDataOutsideCurrentSurvives asserts they are untouched."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-08 part 2. Uninstall removes user data (accepted).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/9",
+      "dev_notes": "Merged after CI green on PR #9 - installed-replay step verified on real windows-latest runner. Step: silent Setup.exe install (-s verified via --help locally), seed user data, run INSTALLED Clicky.exe --replay with absolute fixture path (installed copy needs nothing repo-shaped), apply second package via Update.exe apply -s --norestart, assert sq.version bumped + user-data SHA256 identical. KEY FINDING (verified locally, reproduced twice): Setup.exe full install WIPES settings.json/logs/crashes beside current; Update.exe staged apply preserves byte-identical. CI tests the update path; documented in ci.yml. RELEASE NOTE: users must update via the updater, never re-run Setup.exe. Local dress rehearsal of exact step logic ran green before push.",
       "qa_result": null
     },
     {

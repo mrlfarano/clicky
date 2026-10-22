@@ -171,18 +171,25 @@ internal static class Program
         var interactionRunner = new TracerInteractionRunner(
             options,
             interactionSystemPrompt,
-            interactionUserPromptText,
             effectiveClaudeModel,
             effectiveUserSettings,
-            replayScript,
             workerHttpClient,
             chatEndpoint,
             overlayWindow,
             new MonitorScreenCapturer(),
-            timeProvider,
             analyticsSink,
             textToSpeechSink,
             fallbackSpeechSink);
+        // The updater reads the coordinator's reducer-driven voice state through this (it only applies while idle).
+        var companionVoiceStateReporter = new CompanionVoiceStateReporter();
+        var companionCoordinator = new CompanionCoordinator(
+            interactionRunner,
+            overlayWindow,
+            interactionUserPromptText,
+            timeProvider,
+            analyticsSink,
+            textToSpeechSink,
+            companionVoiceStateReporter);
 
         if (options.IsReplay)
         {
@@ -193,7 +200,7 @@ internal static class Program
                 // analytics sink recorded it — the stub's counterpart of ClickyAnalytics's onboarding_demo_triggered.
                 analyticsSink.TrackEvent("onboarding_demo_triggered");
             }
-            TracerRunReport report = await interactionRunner.RunAsync(CancellationToken.None);
+            TracerRunReport report = await companionCoordinator.RunReplayAsync(replayScript);
             // --linger-ms keeps the cursor on screen so QA can photograph where it landed (parity spec PNT-04).
             // The TimeProvider overload (not the bare Task.Delay) is what lets a fake clock fire this.
             await Task.Delay(options.LingerBeforeExit, timeProvider);
@@ -217,41 +224,14 @@ internal static class Program
 
         var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(
             effectiveUserSettings.PushToTalkShortcut, options.StallFirstHookCallback, timeProvider);
-        CancellationTokenSource? currentInteractionCancellation = null;
-        // shortcut: a tracer interaction reports Processing for its whole run; once the session reducer drives
-        // live mode (WS-14+) it reports its real voice states here instead.
-        var companionVoiceStateReporter = new CompanionVoiceStateReporter();
         // The monitor itself logs every transition ("ptt pressed" / "ptt released", T-007): the privacy rule
         // that log lines carry transitions and state but never vk or scan codes lives next to the key events.
-        shortcutMonitor.ShortcutTransitioned += shortcutTransition => application.Dispatcher.InvokeAsync(async () =>
-        {
-            if (shortcutTransition == PushToTalkTransition.Released)
-            {
-                // The tracer bullet has no recording to finalize; the monitor already logged the release (ADR 001 acceptance 4).
-                return;
-            }
-            // A new press cancels the interaction still in flight, as on macOS (CompanionManager.swift:494-497).
-            currentInteractionCancellation?.Cancel();
-            var interactionCancellation = new CancellationTokenSource();
-            currentInteractionCancellation = interactionCancellation;
-            companionVoiceStateReporter.ReportVoiceState(CompanionVoiceState.Processing);
-            try
-            {
-                await interactionRunner.RunAsync(interactionCancellation.Token);
-            }
-            catch (OperationCanceledException) when (interactionCancellation.IsCancellationRequested)
-            {
-                ClickyLog.Write("interaction cancelled by a newer press");
-            }
-            finally
-            {
-                // A cancelled interaction must not report idle over the newer one that replaced it.
-                if (currentInteractionCancellation == interactionCancellation)
-                {
-                    companionVoiceStateReporter.ReportVoiceState(CompanionVoiceState.Idle);
-                }
-            }
-        });
+        // It raises on a worker thread; Post marshals onto the dispatcher, where the reducer decides what a
+        // press or release does (a press cancels the reply in flight, CompanionManager.swift:494-497).
+        shortcutMonitor.ShortcutTransitioned += shortcutTransition => companionCoordinator.Post(
+            shortcutTransition == PushToTalkTransition.Pressed
+                ? new CompanionSessionEvent.ShortcutPressed()
+                : new CompanionSessionEvent.ShortcutReleased());
         shortcutMonitor.Start();
 
         // Live only, like the hook: replay, --set-setting and --debug-crash have all returned above. With

@@ -57,9 +57,10 @@ public sealed class ReplayHarnessFlagsTests
         Assert.True(replayRun.ExitCode == 0, $"exit code {replayRun.ExitCode}. Output:\n{replayRun.ProcessOutput}");
 
         // The press lands in voiceStateTimeline at its scripted time on the virtual clock (the same
-        // TimeProvider that paces the SSE stream). A press enters "listening" (PTT-01); the full state
-        // machine is T-012's session coordinator.
-        JsonNode timelineEntry = Assert.Single(replayRun.Report["voiceStateTimeline"]!.AsArray())!;
+        // TimeProvider that paces the SSE stream). A press enters "listening" once recording starts (PTT-01),
+        // and with nothing scripted after it, that is where the run ends; the entries before it are the
+        // tracer exchange's own, CoordinatorReplayTests.VoiceStateTimelineRecorded pins those.
+        JsonNode timelineEntry = replayRun.Report["voiceStateTimeline"]!.AsArray()[^1]!;
         Assert.Equal("listening", (string?)timelineEntry!["state"]);
         long deliveredTMs = (long)timelineEntry["tMs"]!;
         Assert.InRange(deliveredTMs, 300, 300 + ScriptedEventDeliveryToleranceMs);
@@ -71,14 +72,15 @@ public sealed class ReplayHarnessFlagsTests
         ReplayRun replayRun = await ClickyReplayProcess.RunAsync("point-basic.sse");
         Assert.True(replayRun.ExitCode == 0, $"exit code {replayRun.ExitCode}. Output:\n{replayRun.ProcessOutput}");
 
-        // A plain replay populates none of them yet (T-012, T-029 and T-044 do), but every report carries
-        // them as arrays, so the parity scenarios can assert on them without a schema special case.
+        // Every report carries them as arrays, so the parity scenarios can assert on them without a schema
+        // special case. Since T-012 the coordinator fills the first three on a plain replay; nothing asks for
+        // a fallback utterance until TTS can fail (T-029).
         foreach (string reportFieldName in new[] { "voiceStateTimeline", "analyticsEvents", "ttsRequests", "fallbackUtterances" })
         {
             Assert.True(replayRun.Report[reportFieldName] is not null, $"report field '{reportFieldName}' is missing");
             Assert.Equal(JsonValueKind.Array, replayRun.Report[reportFieldName]!.GetValueKind());
-            Assert.Empty(replayRun.Report[reportFieldName]!.AsArray());
         }
+        Assert.Empty(replayRun.Report["fallbackUtterances"]!.AsArray());
     }
 
     [Fact]
@@ -90,13 +92,17 @@ public sealed class ReplayHarnessFlagsTests
 
         // No outbound request to posthog.com: replay's only HTTP handler is the fail-closed manifest
         // handler, so an attempted POST would have failed the run instead of exiting zero, and the
-        // in-memory analytics sink records events rather than sending them anywhere.
+        // in-memory analytics sink records events rather than sending them anywhere. What it recorded is one
+        // full exchange's events in reducer order (AN-01).
         Assert.DoesNotContain("posthog.com", replayRun.ProcessOutput, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(replayRun.Report["analyticsEvents"]!.AsArray());
+        Assert.Equal(
+            ["user_message_sent", "element_pointed", "ai_response_received"],
+            replayRun.Report["analyticsEvents"]!.AsArray().Select(analyticsEvent => (string?)analyticsEvent!["name"]));
 
-        // No audio device is opened: nothing was asked of the TTS or fallback sinks in a plain exchange
-        // (they record requests and synthesize nothing), so the run performs no audio activity at all.
-        Assert.Empty(replayRun.Report["ttsRequests"]!.AsArray());
+        // No audio device is opened: the TTS sink records the one text it was asked to speak and synthesizes
+        // nothing, and the fallback sink is never asked, so the run performs no audio activity at all.
+        JsonNode ttsRequest = Assert.Single(replayRun.Report["ttsRequests"]!.AsArray())!;
+        Assert.Equal((string?)replayRun.Report["spokenText"], (string?)ttsRequest!["text"]);
         Assert.Empty(replayRun.Report["fallbackUtterances"]!.AsArray());
     }
 

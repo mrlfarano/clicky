@@ -19,6 +19,9 @@ RegisterRawInputDevices
 SetWindowDisplayAffinity
 SetWindowLong
 SetWindowPos
+SetWinEventHook
+EVENT_SYSTEM_FOREGROUND
+WINEVENT_OUTOFCONTEXT
 SetWindowsHookEx
 UnhookWindowsHookEx
 WINDOW_EX_STYLE

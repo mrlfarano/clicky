@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Interop;
 using Clicky.Core;
 using Velopack;
 
@@ -240,6 +241,16 @@ internal static class Program
             }
         });
         shortcutMonitor.Start();
+
+        // Live only (replay must stay deterministic): follow the user across virtual desktops (audit E2, T-005).
+        // Without the COM class the overlay simply stays on one desktop, the ADR 001 fallback.
+        if (WindowsVirtualDesktopService.TryCreate() is WindowsVirtualDesktopService virtualDesktopService)
+        {
+            var virtualDesktopFollower = new VirtualDesktopFollower(virtualDesktopService, new WindowInteropHelper(overlayWindow).Handle);
+            var foregroundWindowChangeHook = new ForegroundWindowChangeHook(virtualDesktopFollower.HandleForegroundWindowChanged);
+            // The Exit subscription also keeps the hook (and its native callback delegate) alive for the app's life.
+            application.Exit += (_, _) => foregroundWindowChangeHook.Dispose();
+        }
         ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}. Ctrl+C quits.");
     }
 

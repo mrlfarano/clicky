@@ -68,7 +68,9 @@ internal sealed class TracerInteractionRunner(
         PointTagParseResult pointTag = PointTag.Parse(responseText);
         report.ResponseText = responseText;
         report.SpokenText = pointTag.SpokenText;
-        ClickyLog.Write($"spoken text: {pointTag.SpokenText}");
+        // WS-11 privacy rule: the log records the spoken text's LENGTH only, never its content — the
+        // crash report embeds the last log lines and must stay shareable without leaking the answer.
+        ClickyLog.Write($"spoken text: {pointTag.SpokenText.Length} chars");
 
         if (pointTag.Coordinate is not ScreenshotPoint screenshotPoint)
         {

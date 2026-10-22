@@ -15,11 +15,13 @@ internal sealed record ClickyCommandLineOptions(
     string ReportPath,
     string? SaveCapturesDirectory,
     TimeSpan LingerBeforeExit,
-    bool StallFirstHookCallback)
+    bool StallFirstHookCallback,
+    bool DebugCrashRequested)
 {
     public const string UsageText =
         "usage: Clicky.exe [--replay <fixture.sse> [--event-delay-ms N] [--linger-ms N]] [--record <fixture.sse>]\n" +
-        "                  [--report <report.json>] [--save-captures <directory>] [--debug-stall-hook-once]";
+        "                  [--report <report.json>] [--save-captures <directory>] [--debug-stall-hook-once]\n" +
+        "                  [--debug-crash]";
 
     public bool IsReplay => ReplayFixturePath is not null;
 
@@ -32,6 +34,7 @@ internal sealed record ClickyCommandLineOptions(
         string? saveCapturesDirectory = null;
         int? lingerMilliseconds = null;
         bool stallFirstHookCallback = false;
+        bool debugCrashRequested = false;
 
         for (int argumentIndex = 0; argumentIndex < commandLineArguments.Count; argumentIndex++)
         {
@@ -49,6 +52,7 @@ internal sealed record ClickyCommandLineOptions(
                 case "--save-captures": saveCapturesDirectory = Path.GetFullPath(NextValue()); break;
                 case "--linger-ms": lingerMilliseconds = ParseNonNegativeMilliseconds(argumentName, NextValue()); break;
                 case "--debug-stall-hook-once": stallFirstHookCallback = true; break;
+                case "--debug-crash": debugCrashRequested = true; break;
                 default: throw new CommandLineUsageException($"Unknown argument '{argumentName}'.");
             }
         }
@@ -73,7 +77,8 @@ internal sealed record ClickyCommandLineOptions(
             reportPath ?? Path.Combine(Path.GetTempPath(), "clicky-report.json"),
             saveCapturesDirectory,
             TimeSpan.FromMilliseconds(lingerMilliseconds ?? 0),
-            stallFirstHookCallback);
+            stallFirstHookCallback,
+            debugCrashRequested);
     }
 
     private static int ParseNonNegativeMilliseconds(string argumentName, string argumentValue) =>

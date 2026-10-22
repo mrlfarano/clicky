@@ -7,7 +7,8 @@ public sealed record LabeledScreenshot(byte[] ImageBytes, string Label);
 
 /// <summary>
 /// Seam 4: builds the Messages API body the Worker's /chat route forwards unchanged, ported from
-/// ClaudeAPI.swift:112-148. Conversation history is not ported yet; the tracer bullet sends one exchange.
+/// ClaudeAPI.swift:112-148. History goes first as plain-string user/assistant turns; only the current user
+/// turn carries images.
 /// </summary>
 public static class ClaudeRequestBuilder
 {
@@ -17,8 +18,16 @@ public static class ClaudeRequestBuilder
         string model,
         string systemPrompt,
         IReadOnlyList<LabeledScreenshot> labeledScreenshots,
+        IReadOnlyList<ConversationExchange> conversationHistory,
         string userPrompt)
     {
+        var messages = new JsonArray();
+        foreach (ConversationExchange conversationExchange in conversationHistory)
+        {
+            messages.Add(new JsonObject { ["role"] = "user", ["content"] = conversationExchange.UserTranscript });
+            messages.Add(new JsonObject { ["role"] = "assistant", ["content"] = conversationExchange.AssistantResponse });
+        }
+
         var contentBlocks = new JsonArray();
         foreach (LabeledScreenshot labeledScreenshot in labeledScreenshots)
         {
@@ -35,6 +44,7 @@ public static class ClaudeRequestBuilder
             contentBlocks.Add(new JsonObject { ["type"] = "text", ["text"] = labeledScreenshot.Label });
         }
         contentBlocks.Add(new JsonObject { ["type"] = "text", ["text"] = userPrompt });
+        messages.Add(new JsonObject { ["role"] = "user", ["content"] = contentBlocks });
 
         return new JsonObject
         {
@@ -42,10 +52,7 @@ public static class ClaudeRequestBuilder
             ["max_tokens"] = MaximumResponseTokens,
             ["stream"] = true,
             ["system"] = systemPrompt,
-            ["messages"] = new JsonArray
-            {
-                new JsonObject { ["role"] = "user", ["content"] = contentBlocks },
-            },
+            ["messages"] = messages,
         };
     }
 

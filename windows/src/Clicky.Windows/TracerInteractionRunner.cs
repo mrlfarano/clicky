@@ -126,6 +126,9 @@ internal sealed class TracerInteractionRunner(
             claudeModel,
             systemPrompt,
             capturedScreenshots.Select(capturedScreenshot => capturedScreenshot.LabeledScreenshot).ToList(),
+            // shortcut: the coordinator does not hand the reducer's history down yet, so every request is a
+            // first exchange; pass StartChatRequest.ConversationHistory here when that is wired.
+            [],
             transcript);
         report.RequestBody = TracerRunReport.SummarizeRequestBody(
             requestBody,

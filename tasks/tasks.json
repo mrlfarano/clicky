@@ -110,9 +110,9 @@
         "Given the spike is complete, when docs/adr/001-windows-strategy.md is read, then VirtualDesktopFollowTests.AdrAddendumRecordsVerdict asserts an addendum section names adopted or fallback."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/VirtualDesktopFollowTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-02 (audit E2). Documented APIs only. The plan says to add Manual-VM check PNT-07 (adr-derived) to docs/02; it does not exist there yet and phase 5 changes tasks.json only, so the dev must add it. PNT-05 is the nearest existing scenario. QA-matrix: 10 desktop switches in persistent mode, buddy visible <= 500 ms in 10/10; otherwise ADR fallback (recreate on next press).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/17",
+      "dev_notes": "Merged after CI green + two strict-context rebases. VirtualDesktopFollower: EVENT_SYSTEM_FOREGROUND -> fakeable IVirtualDesktopManager -> MoveWindowToDesktop only when overlay off the foreground desktop; no call when current or either id unknown (4 tests). ADR 001 addendum records the spike verdict (Win11 26300). BONUS: added PNT-07 to docs/02 closing the phase-5 spec gap. Panel follower deferred to T-022+.",
       "qa_result": null
     },
     {
@@ -229,9 +229,9 @@
         "Given the vector, when linux-core-tests runs, then SessionReducerGoldenVectorTests passes there (reducer has no Windows references)."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/SessionReducerGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-07 part 1. Ports CompanionManager.swift:430-540, 586-726. Author shared/golden/session-reducer.json from the Swift lines with swiftAnchor and branch ids. Virtual clock via TimeProvider.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/16",
+      "dev_notes": "Merged after CI green + strict-context rebase (post-#15). Pure event->(state,effects) CompanionSession reducer; 12 golden cases; 105 Core. Encodes: repress-during-response cancels (no history, no ai_response_received); repress-during-finalize ignored but still emits push_to_talk_released; tap-without-speech -> idle; history cap 10 storing spoken text POINT-stripped. Deferred with shortcut comments: errors (T-027/T-029), pointing/overlay/transient (T-011), onboarding guard, analytics property counts. OPEN ITEM (Mac sign-off): spec TTS-01 says responding-until-playback-ends but Swift goes idle at playback start (CompanionManager.swift:704-722).",
       "qa_result": null
     },
     {
@@ -337,9 +337,9 @@
         "Given ci.yml, when parsed, then the .pfx-secret step is gone and no EV path exists."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-09. External: owner provisions signing identity and secrets (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET); Trusted Signing identity validation takes calendar time. New OV keys must live in an HSM (CA/B 2023-06). QA-matrix: first real signed build verified by hand.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/15",
+      "dev_notes": "Merged after CI green (SKIPPED path exercised on the PR itself). Signing via vpk per WS-09: azureTrustedSignFile metadata (Trusted Signing secrets TRUSTED_SIGNING_*) or decoded OV .pfx + signParams (SIGNING_CERT_PFX_BASE64 + SIGNING_PASSWORD). verify-signature asserts Valid + timestamp + expected subject on Clicky.exe/Update.exe|Squirrel.exe/Setup.exe; signs BEFORE Defender scan + installed-replay. CAVEAT: post-2023-06 OV keys stay in HSM (no .pfx) - new OV needs AzureSignTool/--signTemplate. CI-only: real Trusted-Signing run needs owner secrets.",
       "qa_result": null
     },
     {

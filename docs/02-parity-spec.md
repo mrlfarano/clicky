@@ -408,6 +408,14 @@ Parser: [CompanionManager.swift:784-823](../leanring-buddy/CompanionManager.swif
   - In the tracer bullet (3c) the buddy jumps to the target, with no bezier.
 - **Fixture & harness**: `shared/golden/flight-path.json` (seam 9, Lands 6), run by Core. Manual-VM **evidence:** a screen recording (≥30 fps) of one flight and its return.
 
+**PNT-07 · The buddy follows the user across virtual desktops** — `adr-derived`
+- **Given** persistent cursor mode with the buddy visible, and at least two virtual desktops.
+- **When** the user switches desktops with Win+Ctrl+→ / Win+Ctrl+←, 10 times.
+- **Then** the buddy is visible on the new desktop within 500 ms, 10 times out of 10. Any miss flips the ADR 001 addendum "virtual-desktop spike verdict" to FALLBACK: the buddy lives on one desktop and is recreated on the next press.
+- **Mac reference**: the overlay joins all Spaces through `collectionBehavior [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]` ([OverlayWindow.swift:29](../leanring-buddy/OverlayWindow.swift#L29)).
+- **Windows**: there is no documented "all desktops" pin (audit E2). The overlay's tool-window styles leave it assigned to no desktop, and `VirtualDesktopFollower` moves any desktop-bound followed window on `EVENT_SYSTEM_FOREGROUND` (T-005).
+- **Fixture & harness**: `VirtualDesktopFollowTests` (fake desktop service, Lands 3c). Manual-VM **evidence:** a screen recording of the 10 switches, plus the app log. A `virtual desktop: MoveWindowToDesktop failed` line marks a refused move.
+
 ---
 
 ## 5. TTS
@@ -647,6 +655,7 @@ Lands: `3c` = tracer bullet, `6` = development. "03-plan §x" is a placeholder u
 | PNT-04 | D6, E1, E6 | 3 | 03-plan §x | 3c | adr-derived | [ ] |
 | PNT-05 | E1, D6 | — | 03-plan §x | 3c | code-derived | [ ] |
 | PNT-06 | E3, E6 | 6, 9 | 03-plan §x | 3c (jump) / 6 (flight) | code-derived | [ ] |
+| PNT-07 | E2 | — | ADR 001 addendum | 3c | adr-derived | [ ] |
 | TTS-01 | F5, G2 | 5 | 03-plan §x | 6 | code-derived | [ ] |
 | TTS-02 | E7, G10 | 6 | 03-plan §x | 6 | code-derived | [ ] |
 | TTS-03 | F7 | 5, 6 | 03-plan §x | 6 | code-derived | [ ] |

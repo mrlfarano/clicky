@@ -196,3 +196,27 @@ Note: "as written" includes the divergence above — macOS seam-extraction (audi
 Open items for the product owner to note while approving: (1) Worker client authentication, and (2) whether transcript text stays in PostHog events (H1). Neither blocks phase 3.
 
 Decision recorded on: 2026-10-22 by product owner (via ZCode PM session). Deferred with the decision: Worker client authentication (stays open), PostHog transcript/response text in analytics (parity carried over).
+
+## Addendum — virtual-desktop spike verdict
+
+Task T-005 (audit E2, parity PNT-07), recorded 2026-10-22 on Windows 11 Pro build 26300, one monitor, one virtual desktop.
+
+**Verdict: ADOPTED** (provisional until the PNT-07 Manual-VM check passes; if it fails, this flips to FALLBACK and the buddy lives on a single virtual desktop, as accepted above).
+
+**What ships.** `VirtualDesktopFollower` runs on every `EVENT_SYSTEM_FOREGROUND` (out-of-context `SetWinEventHook` on the dispatcher thread, live mode only). It asks the documented `IVirtualDesktopManager::GetWindowDesktopId` for the foreground window and the overlay. When both have a desktop and the two differ, it calls `MoveWindowToDesktop` with the foreground window's desktop id. Every COM call uses `PreserveSig`, and if the class cannot be created the app logs that and keeps going. No undocumented interface (the "pin to all desktops" one) is used.
+
+**Verified on this machine (spike probe against the real COM object):**
+- `CoCreateInstance(CLSID_VirtualDesktopManager)` succeeds, and no call threw.
+- A plain WPF window, a `ShowInTaskbar=false` window and a taskbar-visible tool window each report the current desktop id.
+- The overlay as built (`WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_TRANSPARENT`, topmost):
+  - While hidden, `GetWindowDesktopId` fails with `0x8002802B`.
+  - Once shown, it returns `S_OK` with `GUID_NULL`, and `IsWindowOnCurrentVirtualDesktop` returns TRUE.
+  - `MoveWindowToDesktop` returns `S_OK`, but the id stays `GUID_NULL`.
+- A style bisect isolates the cause: adding `WS_EX_TOOLWINDOW` alone, or `WS_EX_NOACTIVATE` alone (without `WS_EX_APPWINDOW`), gives `GUID_NULL`. In other words, the shell assigns the overlay to no desktop.
+- A bogus desktop id and another process's window are both refused with a failure HRESULT, which is returned and logged rather than thrown.
+
+**Proven by tests, not by a desktop switch:** `VirtualDesktopFollowTests` uses a fake service. It checks that the follower moves an off-desktop window to the foreground desktop, makes no call when the window is already there, and makes no call when either desktop id is unknown. Unknown covers the taskbar, the desktop, and the overlay's `GUID_NULL` case, where a move would be an `S_OK` no-op on every foreground change.
+
+**Not verified:** no real Win+Ctrl+Arrow switch was performed. Doing so would have created or switched desktops in the developer's live session, so the spike stops at the API. The verdict therefore rests on an inference: the virtual-desktop shell hides only windows that are assigned to a desktop, so an overlay assigned to none stays visible on every desktop. This is inferred, not observed. For the overlay, the follower is consequently a no-op on this build. It is the safety net for builds or styles where the overlay does get a desktop id, and it is the mechanism for any desktop-bound window later (for example the phase-6 panel, if it is not a tool window).
+
+**Flip rule (PNT-07):** 10 Win+Ctrl+Arrow switches in persistent cursor mode, with the buddy visible on the new desktop within 500 ms in 10/10. Any miss flips this to FALLBACK. The buddy is then recreated on the next push-to-talk, as on macOS (`CompanionManager.swift:485-489`).

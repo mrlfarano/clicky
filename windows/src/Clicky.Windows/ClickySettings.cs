@@ -6,7 +6,7 @@ namespace Clicky.Windows;
 /// <summary>
 /// Ship-time values from appsettings.json next to Clicky.exe (audit A7, plan WS-12): the Worker proxy
 /// URL (ships empty: no hard-coded placeholder), the update feed URL (empty = the updater stays off,
-/// WS-10), the PostHog host and project key (the public client key ClickyAnalytics.swift:16-22
+/// WS-10) and its channel (win-beta or win), the PostHog host and project key (the public client key ClickyAnalytics.swift:16-22
 /// hard-codes), the Claude model list the picker offers, and the tracer prompt (removed once WS-07
 /// lands). WHICH model answers and the push-to-talk shortcut are user choices, so they live in the
 /// data-directory settings.json (<see cref="ClickyUserSettingsStore"/>), never in this file.
@@ -14,6 +14,7 @@ namespace Clicky.Windows;
 internal sealed record ClickySettings(
     string? WorkerBaseUrl,
     string? UpdateFeedUrl,
+    string? UpdateChannel,
     string? PostHogHost,
     string? PostHogApiKey,
     IReadOnlyList<string> ClaudeModels,
@@ -41,8 +42,19 @@ internal sealed record ClickySettings(
         {
             throw new InvalidDataException($"{settingsFilePath} needs a non-empty ClaudeModels list (no blank ids) and a non-empty TracerPromptText.");
         }
+        if (!ClickyUpdateFeed.KnownUpdateChannels.Contains(settings.UpdateChannel ?? ""))
+        {
+            throw new InvalidDataException($"{settingsFilePath} needs UpdateChannel set to one of: {string.Join(", ", ClickyUpdateFeed.KnownUpdateChannels)}.");
+        }
         return settings;
     }
+
+    /// <summary>
+    /// The feed the updater polls, or null when UpdateFeedUrl is empty — the shipped default, which keeps
+    /// the updater off (WS-10) until signed releases exist.
+    /// </summary>
+    public ClickyUpdateFeed? TryGetUpdateFeed() =>
+        string.IsNullOrWhiteSpace(UpdateFeedUrl) ? null : new ClickyUpdateFeed(UpdateFeedUrl, UpdateChannel!);
 
     /// <summary>The Worker's /chat route, or null when WorkerBaseUrl is missing or not an absolute http(s) URL.</summary>
     public Uri? TryGetChatEndpoint()

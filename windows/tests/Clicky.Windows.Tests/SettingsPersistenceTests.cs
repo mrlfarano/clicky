@@ -148,6 +148,7 @@ public sealed class SettingsPersistenceTests
         // project key, and the Claude model list the picker offers.
         Assert.NotNull(shippedAppSettingsRoot["WorkerBaseUrl"]);
         Assert.NotNull(shippedAppSettingsRoot["UpdateFeedUrl"]);
+        Assert.NotNull(shippedAppSettingsRoot["UpdateChannel"]);
         Assert.NotNull(shippedAppSettingsRoot["PostHogHost"]);
         Assert.NotNull(shippedAppSettingsRoot["PostHogApiKey"]);
         Assert.NotNull(shippedAppSettingsRoot["ClaudeModels"]);

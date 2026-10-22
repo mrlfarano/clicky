@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The Windows shell (ADR 001). Compiles against the 19041 SDK for the WinRT projections but runs on 1903+;
-       19041-only APIs are runtime-guarded. -->
+  <!-- The Windows shell (ADR 001). Compiles against the 20348 SDK for the WinRT projections (borderless capture,
+       T-025) but runs on 1903+; 19041+ and 20348+ APIs are runtime-guarded. -->
   <PropertyGroup>
     <!-- GUI subsystem (T-030, audit A1/A2): no console window; QA reads the timestamped log under
          <data directory>\logs. Redirected stdout/stderr still receive ClickyLog's mirror, which the process tests read. -->
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.20348.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <AssemblyName>Clicky</AssemblyName>

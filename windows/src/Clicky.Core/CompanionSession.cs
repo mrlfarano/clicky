@@ -84,6 +84,9 @@ public abstract record CompanionSessionEvent
     /// <summary>The full streamed reply to the chat request with this id, POINT tag included.</summary>
     public sealed record ResponseReady(int ChatRequestId, string FullResponseText) : CompanionSessionEvent;
 
+    /// <summary>The chat request with this id failed (non-2xx, timeout, transport); ErrorMessage is what response_error reports.</summary>
+    public sealed record ResponseFailed(int ChatRequestId, string ErrorMessage) : CompanionSessionEvent;
+
     public sealed record TtsStarted : CompanionSessionEvent;
 
     public sealed record TtsEnded : CompanionSessionEvent;
@@ -132,6 +135,12 @@ public abstract record CompanionSessionEffect
     public sealed record SpeakResponse(string SpokenText) : CompanionSessionEffect;
 
     /// <summary>
+    /// Start the system voice on Utterance (parity spec TTS-03) and report TtsEnded at once, without waiting for
+    /// it to finish: Swift goes idle right after startSpeaking (CompanionManager.swift:761-765, 720-722).
+    /// </summary>
+    public sealed record SpeakFallbackUtterance(string Utterance) : CompanionSessionEffect;
+
+    /// <summary>
     /// EventContent is the transcript for user_message_sent, the spoken text for ai_response_received and
     /// the label for element_pointed; the AnalyticsEvents catalogue turns it into PostHog properties.
     /// </summary>
@@ -147,9 +156,9 @@ public sealed record CompanionSessionTransition(CompanionSessionState State, IRe
 /// after a cancel, a transcript nobody is finalizing) change nothing, standing in for Swift's
 /// Task.isCancelled checks (CompanionManager.swift:598, 623, 721).
 /// A failed TTS needs no event of its own: the shell speaks the fallback voice between TtsStarted and TtsEnded
-/// (TTS-03, T-029).
-/// shortcut: no ResponseFailed event yet, so a failed request leaves voiceState at processing until the next
-/// press; add it with the CLA-06 error handling (T-027).
+/// (TTS-03, T-029). A failed chat request takes the same fallback path (CLA-06, T-027).
+/// shortcut: no ResponseFailed event yet, so a failed request with no fallback utterance leaves voiceState at
+/// processing until the next press; revisit if CLA-06 grows a silent-failure case.
 /// </summary>
 public static class CompanionSession
 {
@@ -175,6 +184,17 @@ public static class CompanionSession
             when state.ResponsePhase == CompanionResponsePhase.AwaitingChatResponse
                 && responseReady.ChatRequestId == state.LatestChatRequestId =>
             ResponseReady(state, responseReady.FullResponseText),
+        // CompanionManager.swift:715-718, 761-765 (CLA-06): response_error fires, the system voice speaks the
+        // fallback (voiceState responding) and nothing is stored in the history; TtsEnded then goes idle.
+        CompanionSessionEvent.ResponseFailed responseFailed
+            when state.ResponsePhase == CompanionResponsePhase.AwaitingChatResponse
+                && responseFailed.ChatRequestId == state.LatestChatRequestId =>
+            Transition(
+                state with { ResponsePhase = CompanionResponsePhase.Speaking, InFlightTranscript = null, VoiceState = CompanionVoiceState.Responding },
+                [
+                    new CompanionSessionEffect.TrackAnalyticsEvent("response_error", responseFailed.ErrorMessage),
+                    new CompanionSessionEffect.SpeakFallbackUtterance(TtsRequest.CreditsErrorFallbackUtterance),
+                ]),
         CompanionSessionEvent.TtsStarted when state.ResponsePhase == CompanionResponsePhase.AwaitingTtsStart =>
             Transition(state with { ResponsePhase = CompanionResponsePhase.Speaking, VoiceState = CompanionVoiceState.Responding }),
         // Parity spec TTS-01: idle when playback ends. Swift goes idle as soon as play() returns

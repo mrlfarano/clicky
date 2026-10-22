@@ -73,8 +73,8 @@ public sealed class ReplayHarnessFlagsTests
         Assert.True(replayRun.ExitCode == 0, $"exit code {replayRun.ExitCode}. Output:\n{replayRun.ProcessOutput}");
 
         // Every report carries them as arrays, so the parity scenarios can assert on them without a schema
-        // special case. Since T-012 the coordinator fills the first three on a plain replay; nothing asks for
-        // a fallback utterance until TTS can fail (T-029).
+        // special case. Since T-012 the coordinator fills the first three on a plain replay; only a failed
+        // request (T-027) or TTS (T-029) asks for a fallback utterance.
         foreach (string reportFieldName in new[] { "voiceStateTimeline", "analyticsEvents", "ttsRequests", "fallbackUtterances" })
         {
             Assert.True(replayRun.Report[reportFieldName] is not null, $"report field '{reportFieldName}' is missing");

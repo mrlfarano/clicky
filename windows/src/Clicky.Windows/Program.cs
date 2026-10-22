@@ -180,12 +180,17 @@ internal static class Program
         var overlayWindow = new CursorOverlayWindow();
         overlayWindow.CreateHiddenWindowHandle();
 
-        HttpMessageHandler workerMessageHandler = replayManifest is not null
+        ReplayHttpMessageHandler? replayHttpMessageHandler = replayManifest is not null
             ? new ReplayHttpMessageHandler(replayManifest, options.ReplayEventDelay, timeProvider)
+            : null;
+        HttpMessageHandler workerMessageHandler = (HttpMessageHandler?)replayHttpMessageHandler
             // Cookies off, as in the Swift URLSession configuration (audit G2).
-            : new SocketsHttpHandler { UseCookies = false, ConnectTimeout = TimeSpan.FromSeconds(15) };
-        // One HttpClient for the life of the app, so connections and TLS sessions are reused across presses.
-        var workerHttpClient = new HttpClient(workerMessageHandler) { Timeout = TimeSpan.FromSeconds(120) };
+            ?? new SocketsHttpHandler { UseCookies = false, ConnectTimeout = TimeSpan.FromSeconds(15) };
+        // One HttpClient for the life of the app, so connections and TLS sessions are reused across presses. No
+        // HttpClient timeout: ClaudeClient's deadlines run on the TimeProvider, so a fake clock can fire them.
+        var workerHttpClient = new HttpClient(workerMessageHandler) { Timeout = Timeout.InfiniteTimeSpan };
+        // Created here, at startup, so its TLS warm-up HEAD goes out before the first press (G3).
+        var claudeClient = new ClaudeClient(workerHttpClient, chatEndpoint, effectiveClaudeModel, timeProvider);
 
         // The sinks record what the interaction outputs into the report. Analytics stays the in-memory stub
         // until T-044. Replay plays TTS through the silent fake output and never through the system voice, so it
@@ -203,10 +208,9 @@ internal static class Program
         var interactionRunner = new TracerInteractionRunner(
             options,
             interactionSystemPrompt,
-            effectiveClaudeModel,
             effectiveUserSettings,
-            workerHttpClient,
-            chatEndpoint,
+            claudeClient,
+            replayHttpMessageHandler?.RecordedRequests ?? [],
             overlayWindow,
             new MonitorScreenCapturer(),
             analyticsSink,

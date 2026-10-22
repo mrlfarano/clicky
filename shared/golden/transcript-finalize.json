@@ -1,0 +1,261 @@
+{
+  "schema": 1,
+  "seam": "transcript-finalize",
+  "swiftAnchor": "leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift:198-419",
+  "description": "TranscriptFinalize.Reduce from TranscriptFinalizeState.Initial over input.events in order, on a virtual clock that starts at 0 ms. Document swiftAnchor is the provider's final-transcript wait; the manager's fallback and error handling (BuddyDictationManager.swift:476-606) are anchored on the cases they justify. Event types: turn {transcript, endsTurn} (transcript is the full transcript AssemblyAiTurnTranscriptAssembler composed after the Turn; endsTurn is end_of_turn or turn_is_formatted), keyReleased {hasActiveTranscriptionSession}, termination, error {message}, and advance {ms}, which moves the clock and reduces a deadlineElapsed for every scheduleDeadline timer that comes due, at its due time. input.stalledProvider true means the provider never calls back, so its providerGrace timer is never armed (parity spec STT-05 b). expected.effects has one entry per event: the effects it emitted, in order. Effects are written as 'scheduleDeadline <providerGrace|sessionFallback|defaultFallback> <delay>ms', 'sendForceEndpoint', 'sendTerminate', 'submitTranscript <text>', 'discardEmptyTranscript' and 'cancelDictation <message>'. expected.finishedAtMs is the clock time of the one submitTranscript, discardEmptyTranscript or cancelDictation. Timings are exact; the +/-100 ms wall-clock tolerance applies only to Replay. Parity spec STT-04, STT-05, STT-06, STT-08.",
+  "cases": [
+    {
+      "id": "grace-1400ms",
+      "branch": "provider-grace",
+      "swiftAnchor": "leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift:198-206, 302, 349-374",
+      "input": {
+        "events": [
+          { "type": "turn", "transcript": "What is this?", "endsTurn": true },
+          { "type": "turn", "transcript": "What is this? and th", "endsTurn": false },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 1399 },
+          { "type": "advance", "ms": 1 },
+          { "type": "advance", "ms": 2000 }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          [],
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          [],
+          ["sendTerminate", "submitTranscript What is this? and th"],
+          []
+        ],
+        "finishedAtMs": 1400
+      }
+    },
+    {
+      "id": "session-fallback-2800ms",
+      "branch": "session-fallback",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:491-511",
+      "input": {
+        "stalledProvider": true,
+        "events": [
+          { "type": "turn", "transcript": "open the settings", "endsTurn": false },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 2799 },
+          { "type": "advance", "ms": 1 }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          [],
+          ["sendTerminate", "submitTranscript open the settings"]
+        ],
+        "finishedAtMs": 2800
+      }
+    },
+    {
+      "id": "default-fallback-2400ms",
+      "branch": "default-fallback",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:219, 491-511, 603",
+      "input": {
+        "events": [
+          { "type": "keyReleased", "hasActiveTranscriptionSession": false },
+          { "type": "advance", "ms": 2399 },
+          { "type": "advance", "ms": 1 }
+        ]
+      },
+      "expected": {
+        "effects": [
+          ["scheduleDeadline defaultFallback 2400ms"],
+          [],
+          ["discardEmptyTranscript"]
+        ],
+        "finishedAtMs": 2400
+      }
+    },
+    {
+      "id": "first-wins",
+      "branch": "first-wins",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:581-583",
+      "input": {
+        "events": [
+          { "type": "turn", "transcript": "hello", "endsTurn": false },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 3000 },
+          { "type": "turn", "transcript": "Hello there.", "endsTurn": true },
+          { "type": "termination" },
+          { "type": "error", "message": "Socket is not connected" },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          ["sendTerminate", "submitTranscript hello"],
+          [],
+          [],
+          [],
+          []
+        ],
+        "finishedAtMs": 1400
+      }
+    },
+    {
+      "id": "end-of-turn-before-grace",
+      "branch": "end-of-turn-after-key-up",
+      "swiftAnchor": "leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift:302-308, 367-374",
+      "input": {
+        "events": [
+          { "type": "turn", "transcript": "where is the", "endsTurn": false },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 600 },
+          { "type": "turn", "transcript": "Where is the save button?", "endsTurn": true },
+          { "type": "turn", "transcript": "Where is the save button?", "endsTurn": true },
+          { "type": "advance", "ms": 3000 }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          [],
+          ["sendTerminate", "submitTranscript Where is the save button?"],
+          [],
+          []
+        ],
+        "finishedAtMs": 600
+      }
+    },
+    {
+      "id": "termination-delivers",
+      "branch": "termination-while-finalizing",
+      "swiftAnchor": "leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift:254-260",
+      "input": {
+        "events": [
+          { "type": "turn", "transcript": "close this window", "endsTurn": false },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 500 },
+          { "type": "termination" },
+          { "type": "advance", "ms": 3000 }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          [],
+          ["sendTerminate", "submitTranscript close this window"],
+          []
+        ],
+        "finishedAtMs": 500
+      }
+    },
+    {
+      "id": "error-no-text-cancels",
+      "branch": "error-no-text",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:562-579",
+      "input": {
+        "events": [
+          { "type": "advance", "ms": 300 },
+          { "type": "error", "message": "AssemblyAI returned an error." },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 3000 }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          ["sendTerminate", "cancelDictation AssemblyAI returned an error."],
+          [],
+          []
+        ],
+        "finishedAtMs": 300
+      }
+    },
+    {
+      "id": "error-while-recording-with-partial-cancels",
+      "branch": "error-while-recording",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:562-579",
+      "input": {
+        "events": [
+          { "type": "turn", "transcript": "take a look", "endsTurn": false },
+          { "type": "error", "message": "Socket is not connected" },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          ["sendTerminate", "cancelDictation Socket is not connected"],
+          []
+        ],
+        "finishedAtMs": 0
+      }
+    },
+    {
+      "id": "error-with-partial-submits",
+      "branch": "error-with-partial-while-finalizing",
+      "swiftAnchor": "leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift:392-408",
+      "input": {
+        "events": [
+          { "type": "turn", "transcript": "summarize this page", "endsTurn": false },
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 800 },
+          { "type": "error", "message": "Socket is not connected" },
+          { "type": "advance", "ms": 3000 }
+        ]
+      },
+      "expected": {
+        "effects": [
+          [],
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          [],
+          ["sendTerminate", "submitTranscript summarize this page"],
+          []
+        ],
+        "finishedAtMs": 800
+      }
+    },
+    {
+      "id": "error-while-finalizing-no-text-cancels",
+      "branch": "error-no-text-while-finalizing",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:562-579",
+      "input": {
+        "events": [
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 700 },
+          { "type": "error", "message": "AssemblyAI returned an error." }
+        ]
+      },
+      "expected": {
+        "effects": [
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          [],
+          ["sendTerminate", "cancelDictation AssemblyAI returned an error."]
+        ],
+        "finishedAtMs": 700
+      }
+    },
+    {
+      "id": "empty-final-not-submitted",
+      "branch": "empty-final",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:581-606",
+      "input": {
+        "events": [
+          { "type": "keyReleased", "hasActiveTranscriptionSession": true },
+          { "type": "advance", "ms": 200 },
+          { "type": "turn", "transcript": "", "endsTurn": true }
+        ]
+      },
+      "expected": {
+        "effects": [
+          ["scheduleDeadline providerGrace 1400ms", "sendForceEndpoint", "scheduleDeadline sessionFallback 2800ms"],
+          [],
+          ["sendTerminate", "discardEmptyTranscript"]
+        ],
+        "finishedAtMs": 200
+      }
+    }
+  ]
+}

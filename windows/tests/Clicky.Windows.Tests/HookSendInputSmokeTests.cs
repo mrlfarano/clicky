@@ -10,12 +10,16 @@ namespace Clicky.Windows.Tests;
 /// --debug-stall-hook-once, SendInput presses fire the shortcut, and the app log must show
 /// "hook stalled (debug)", "watchdog: hook reinstalled" and "ptt pressed" in that order. Tagged
 /// "Desktop" and skipped wherever no interactive input desktop exists (a session-0 agent cannot
-/// inject keystrokes); the skip is the designed behavior, not a failure.
+/// inject keystrokes); the skip is the designed behavior, not a failure. It is also opt-in through
+/// CLICKY_RUN_INTERACTIVE_SMOKE=1: the presses land in whatever window has focus, so a default run on a
+/// developer's own desktop must never type into their apps.
 /// </summary>
 [Trait("Category", "Desktop")]
 [Collection(ClickyProcessReplayCollection.Name)] // launches Clicky.exe and injects real input: serialized with the other process suites
 public sealed class HookSendInputSmokeTests
 {
+    private const string InteractiveSmokeOptInVariableName = "CLICKY_RUN_INTERACTIVE_SMOKE";
+
     private static readonly TimeSpan StartupWaitLimit = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan EvidenceDeadline = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan TimeBetweenPressCycles = TimeSpan.FromMilliseconds(800);
@@ -26,9 +30,14 @@ public sealed class HookSendInputSmokeTests
     private const uint InputTypeKeyboard = 1;
     private const uint KeyEventKeyUp = 0x0002;
 
-    [Fact]
+    // Startup wait plus evidence deadline plus margin: a future hang fails this test instead of holding the run.
+    [Fact(Timeout = 60_000)]
     public async Task StalledHookIsWatchdogReinstalledAndPressesAgain()
     {
+        if (Environment.GetEnvironmentVariable(InteractiveSmokeOptInVariableName) != "1")
+        {
+            Assert.Skip($"set {InteractiveSmokeOptInVariableName}=1 to run: this test types real Ctrl+Alt presses into the focused window");
+        }
         if (!HasInteractiveInputDesktop())
         {
             // Runtime skip (not [Fact(Skip)]): the trait stays "Desktop" and the test still runs
@@ -44,48 +53,55 @@ public sealed class HookSendInputSmokeTests
             Task<string> liveStandardOutputText = liveClickyProcess.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
             Task<string> liveStandardErrorText = liveClickyProcess.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
 
-            // Wait until the hook is really installed before injecting input, so the stall lands on a
-            // known keystroke instead of on whatever noise precedes startup.
-            var startupWaitLimit = DateTime.UtcNow + StartupWaitLimit;
-            string logText = ReadEveryLogFile(dataDirectoryPath);
-            while (DateTime.UtcNow < startupWaitLimit
-                && !liveClickyProcess.HasExited
-                && !logText.Contains("live: listening", StringComparison.Ordinal))
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
-                logText = ReadEveryLogFile(dataDirectoryPath);
-            }
-            Assert.True(logText.Contains("live: listening", StringComparison.Ordinal),
-                $"Clicky.exe never reached live mode. Log:\n{logText}\nOutput:\n{await liveStandardOutputText}");
-
+            string logText = "";
+            bool reachedLiveMode = false;
             bool sawAllRecoveryEvidence = false;
-            using var evidenceDeadlineCancellation = new CancellationTokenSource(EvidenceDeadline);
             try
             {
-                while (!evidenceDeadlineCancellation.IsCancellationRequested && !liveClickyProcess.HasExited)
+                // Wait until the hook is really installed before injecting input, so the stall lands on a
+                // known keystroke instead of on whatever noise precedes startup.
+                var startupWaitLimit = DateTime.UtcNow + StartupWaitLimit;
+                while (DateTime.UtcNow < startupWaitLimit && !liveClickyProcess.HasExited && !reachedLiveMode)
                 {
-                    await SendShortcutPressCycleAsync(TestContext.Current.CancellationToken);
+                    await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
                     logText = ReadEveryLogFile(dataDirectoryPath);
-                    if (LogShowsRecoveryEvidenceInOrder(logText))
+                    reachedLiveMode = logText.Contains("live: listening", StringComparison.Ordinal);
+                }
+
+                using var evidenceDeadlineCancellation = new CancellationTokenSource(EvidenceDeadline);
+                try
+                {
+                    while (reachedLiveMode && !evidenceDeadlineCancellation.IsCancellationRequested && !liveClickyProcess.HasExited)
                     {
-                        sawAllRecoveryEvidence = true;
-                        break;
+                        await SendShortcutPressCycleAsync(TestContext.Current.CancellationToken);
+                        logText = ReadEveryLogFile(dataDirectoryPath);
+                        if (LogShowsRecoveryEvidenceInOrder(logText))
+                        {
+                            sawAllRecoveryEvidence = true;
+                            break;
+                        }
+                        await Task.Delay(TimeBetweenPressCycles, evidenceDeadlineCancellation.Token);
                     }
-                    await Task.Delay(TimeBetweenPressCycles, evidenceDeadlineCancellation.Token);
+                }
+                catch (OperationCanceledException) when (evidenceDeadlineCancellation.IsCancellationRequested)
+                {
+                    // Deadline hit: fall through so the assertions report the log as evidence.
                 }
             }
-            catch (OperationCanceledException) when (evidenceDeadlineCancellation.IsCancellationRequested)
+            finally
             {
-                // Deadline hit: fall through so the assertions report the log as evidence.
+                // Kill before anything awaits the output streams: they end only when the process exits, and
+                // live Clicky never exits by itself. Awaiting them first was this test's original hang, and
+                // the finally also keeps a timed-out run from leaving a zombie Clicky.exe locking the build.
+                if (!liveClickyProcess.HasExited)
+                {
+                    liveClickyProcess.Kill(entireProcessTree: true);
+                }
+                liveClickyProcess.WaitForExit();
             }
-
-            if (!liveClickyProcess.HasExited)
-            {
-                liveClickyProcess.Kill(entireProcessTree: true);
-            }
-            await liveClickyProcess.WaitForExitAsync(TestContext.Current.CancellationToken);
             string liveProcessOutput = await liveStandardOutputText + await liveStandardErrorText;
 
+            Assert.True(reachedLiveMode, $"Clicky.exe never reached live mode. Log:\n{logText}\nOutput:\n{liveProcessOutput}");
             Assert.True(sawAllRecoveryEvidence,
                 $"hook recovery evidence missing or out of order within {EvidenceDeadline.TotalSeconds} s. Log:\n{logText}\nOutput:\n{liveProcessOutput}");
         }
@@ -95,6 +111,11 @@ public sealed class HookSendInputSmokeTests
             Directory.Delete(dataDirectoryPath, recursive: true);
         }
     }
+
+    /// <summary>Runs everywhere, unlike the opt-in smoke test: a wrong marshalled size makes every SendInput call fail.</summary>
+    [Fact]
+    public void InjectedKeyEventMatchesNativeInputSize() =>
+        Assert.Equal(IntPtr.Size == 8 ? 40 : 28, Marshal.SizeOf<SENDINPUT_KEYBOARD_EVENT>()); // sizeof(INPUT), WinUser.h
 
     /// <summary>
     /// Live mode refuses to start without a WorkerBaseUrl, and the smoke test must never reach the real
@@ -164,10 +185,13 @@ public sealed class HookSendInputSmokeTests
         var injectedKeyEvent = new SENDINPUT_KEYBOARD_EVENT
         {
             InputType = InputTypeKeyboard,
-            KeyboardInput = new KEYBDINPUT
+            Union = new INPUT_UNION
             {
-                VirtualKey = (ushort)virtualKeyCode,
-                Flags = isKeyUp ? KeyEventKeyUp : 0,
+                KeyboardInput = new KEYBDINPUT
+                {
+                    VirtualKey = (ushort)virtualKeyCode,
+                    Flags = isKeyUp ? KeyEventKeyUp : 0,
+                },
             },
         };
         uint injectedEventCount = SendInput(1, [injectedKeyEvent], Marshal.SizeOf<SENDINPUT_KEYBOARD_EVENT>());
@@ -239,14 +263,32 @@ public sealed class HookSendInputSmokeTests
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int HorizontalPosition;
+        public int VerticalPosition;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public IntPtr ExtraInformation;
+    }
+
+    /// <summary>
+    /// The native INPUT union. MOUSEINPUT is its largest member, so it is overlaid here purely for size:
+    /// SendInput rejects any cbSize other than sizeof(INPUT) (40 bytes on x64, 28 on x86), and a real
+    /// union is the only layout that matches on both architectures.
+    /// </summary>
+    [StructLayout(LayoutKind.Explicit)]
+    private struct INPUT_UNION
+    {
+        [FieldOffset(0)] public KEYBDINPUT KeyboardInput;
+        [FieldOffset(0)] public MOUSEINPUT MouseInputForUnionSize;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct SENDINPUT_KEYBOARD_EVENT
     {
         public uint InputType;
-        public KEYBDINPUT KeyboardInput;
-
-        // KEYBDINPUT is not the largest member of the native INPUT union (MOUSEINPUT is, by two
-        // pointers): this padding makes the marshalled size match sizeof(INPUT), which SendInput checks.
-        private readonly IntPtr unionPadding1;
-        private readonly IntPtr unionPadding2;
+        public INPUT_UNION Union;
     }
 }

@@ -115,12 +115,13 @@ internal sealed class GlobalPushToTalkShortcutMonitor
     private readonly Channel<KeyboardHookSignal> keyboardHookSignals = Channel.CreateUnbounded<KeyboardHookSignal>(
         new UnboundedChannelOptions { SingleReader = true });
 
+    private readonly TimeProvider timeProvider;
     private HwndSource? rawInputWindow;
 
-    // Deliberately still a DispatcherTimer, not an injected TimeProvider timer (the deviation T-001
-    // recorded for T-007): the tick must run on the hook thread's own dispatcher, because reinstalling
-    // the hook from any other thread would leave hook callbacks delivered to a dead message loop.
-    private DispatcherTimer? hookLivenessCheckTimer;
+    // A one-shot TimeProvider timer (T-001 left this conversion to T-007) whose tick is marshalled back
+    // onto the hook thread's dispatcher: reinstalling the hook from any other thread would leave hook
+    // callbacks delivered to a message loop that is not running.
+    private ITimer? hookLivenessCheckTimer;
 
     // Touched only on the hook thread.
     private long lastHookCallbackTickMilliseconds;
@@ -135,8 +136,8 @@ internal sealed class GlobalPushToTalkShortcutMonitor
     /// <summary>Raised on a worker thread; subscribers marshal to their own thread.</summary>
     public event Action<PushToTalkTransition>? ShortcutTransitioned;
 
-    public GlobalPushToTalkShortcutMonitor(PushToTalkShortcutOption shortcutOption, bool stallFirstHookCallback)
-        : this(shortcutOption, stallFirstHookCallback, keyboardHookInstallerForTests: null)
+    public GlobalPushToTalkShortcutMonitor(PushToTalkShortcutOption shortcutOption, bool stallFirstHookCallback, TimeProvider timeProvider)
+        : this(shortcutOption, stallFirstHookCallback, timeProvider, keyboardHookInstallerForTests: null)
     {
     }
 
@@ -147,9 +148,11 @@ internal sealed class GlobalPushToTalkShortcutMonitor
     internal GlobalPushToTalkShortcutMonitor(
         PushToTalkShortcutOption shortcutOption,
         bool stallFirstHookCallback,
+        TimeProvider timeProvider,
         IKeyboardHookInstaller? keyboardHookInstallerForTests)
     {
         this.stallFirstHookCallback = stallFirstHookCallback;
+        this.timeProvider = timeProvider;
         keyboardHookInstaller = keyboardHookInstallerForTests ?? new WindowsKeyboardHookInstaller(KeyboardHookCallback);
         pushToTalkDetector = new PushToTalkDetector(shortcutOption);
     }
@@ -292,11 +295,13 @@ internal sealed class GlobalPushToTalkShortcutMonitor
             throw new Win32Exception(Marshal.GetLastWin32Error(), "WTSRegisterSessionNotification failed");
         }
 
-        hookLivenessCheckTimer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = TimeSpan.FromMilliseconds(HookLivenessWindowMilliseconds),
-        };
-        hookLivenessCheckTimer.Tick += (_, _) => CheckHookLiveness();
+        // Created disarmed; each first raw key-down arms it once (see HandleRawInputWindowMessage).
+        Dispatcher hookThreadDispatcher = Dispatcher.CurrentDispatcher;
+        hookLivenessCheckTimer = timeProvider.CreateTimer(
+            _ => hookThreadDispatcher.InvokeAsync(CheckHookLiveness),
+            state: null,
+            dueTime: Timeout.InfiniteTimeSpan,
+            period: Timeout.InfiniteTimeSpan);
     }
 
     private IntPtr RawInputWindowProcedure(IntPtr windowHandle, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -317,7 +322,7 @@ internal sealed class GlobalPushToTalkShortcutMonitor
         if (message == WindowMessageInput && pendingRawKeyDownTickMilliseconds is null && IsRawKeyDown(lParam))
         {
             pendingRawKeyDownTickMilliseconds = Environment.TickCount64;
-            hookLivenessCheckTimer!.Start();
+            hookLivenessCheckTimer!.Change(TimeSpan.FromMilliseconds(HookLivenessWindowMilliseconds), Timeout.InfiniteTimeSpan);
             return;
         }
         if (message == PowerBroadcastWindowMessage && wParam == PowerBroadcastResumeAutomaticWParam)
@@ -350,7 +355,6 @@ internal sealed class GlobalPushToTalkShortcutMonitor
 
     private void CheckHookLiveness()
     {
-        hookLivenessCheckTimer!.Stop();
         if (pendingRawKeyDownTickMilliseconds is not long rawKeyDownTickMilliseconds)
         {
             return;

@@ -35,7 +35,7 @@ public sealed class HookRecoveryTests
         using CapturedConsoleLog capturedLog = CapturedConsoleLog.Start();
         var hookInstallerFake = new CountingKeyboardHookInstallerFake();
         var monitor = new GlobalPushToTalkShortcutMonitor(
-            PushToTalkShortcutOption.ControlOption, stallFirstHookCallback: false, hookInstallerFake);
+            PushToTalkShortcutOption.ControlOption, stallFirstHookCallback: false, TimeProvider.System, hookInstallerFake);
         var observedTransitions = new List<PushToTalkTransition>();
         monitor.ShortcutTransitioned += observedTransitions.Add;
 
@@ -84,7 +84,7 @@ public sealed class HookRecoveryTests
         using CapturedConsoleLog capturedLog = CapturedConsoleLog.Start();
         var hookInstallerFake = new CountingKeyboardHookInstallerFake();
         var monitor = new GlobalPushToTalkShortcutMonitor(
-            PushToTalkShortcutOption.ControlOption, stallFirstHookCallback: false, hookInstallerFake);
+            PushToTalkShortcutOption.ControlOption, stallFirstHookCallback: false, TimeProvider.System, hookInstallerFake);
         var observedTransitions = new List<PushToTalkTransition>();
         monitor.ShortcutTransitioned += observedTransitions.Add;
 
@@ -119,7 +119,7 @@ public sealed class HookRecoveryTests
         using CapturedConsoleLog capturedLog = CapturedConsoleLog.Start();
         var hookInstallerFake = new CountingKeyboardHookInstallerFake();
         var monitor = new GlobalPushToTalkShortcutMonitor(
-            PushToTalkShortcutOption.ControlOption, stallFirstHookCallback: false, hookInstallerFake);
+            PushToTalkShortcutOption.ControlOption, stallFirstHookCallback: false, TimeProvider.System, hookInstallerFake);
 
         // Every key the run touches; the assertions below recycle these pairs as the forbidden strings.
         var runKeyCodes = new List<(uint VirtualKeyCode, uint ScanCode)>

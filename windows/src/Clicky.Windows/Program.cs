@@ -214,7 +214,8 @@ internal static class Program
             RaiseDeliberateDebugCrash();
         }
 
-        var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(effectiveUserSettings.PushToTalkShortcut, options.StallFirstHookCallback);
+        var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(
+            effectiveUserSettings.PushToTalkShortcut, options.StallFirstHookCallback, timeProvider);
         CancellationTokenSource? currentInteractionCancellation = null;
         // The monitor itself logs every transition ("ptt pressed" / "ptt released", T-007): the privacy rule
         // that log lines carry transitions and state but never vk or scan codes lives next to the key events.
@@ -222,7 +223,7 @@ internal static class Program
         {
             if (shortcutTransition == PushToTalkTransition.Released)
             {
-                // The tracer bullet has no recording to finalize; the release is logged for ADR 001 acceptance 4.
+                // The tracer bullet has no recording to finalize; the monitor already logged the release (ADR 001 acceptance 4).
                 return;
             }
             // A new press cancels the interaction still in flight, as on macOS (CompanionManager.swift:494-497).

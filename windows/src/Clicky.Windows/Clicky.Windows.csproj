@@ -23,6 +23,8 @@
          NAudio is MIT; the choice over raw CsWin32 bindings is justified in NAudioMicrophoneCapture.cs.
          This is the 2.x package that carries the NAudio.CoreAudioApi namespace (WasapiCapture, MMDeviceEnumerator). -->
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <!-- SAPI system voice for the TTS-03 out-of-credits fallback (WS-17/T-029, audit row F7). MIT. -->
+    <PackageReference Include="System.Speech" Version="10.0.0" />
     <!-- Velopack install/update hooks (ADR 001 "Packaging": per-user Setup.exe, no MSIX).
          Keep this version in lockstep with the vpk tool pinned in .github/workflows/ci.yml;
          PackagingWorkflowTests.PackUsesWinBetaChannelAndPinnedVpk fails the build if they drift. -->

@@ -17,9 +17,9 @@
         "Given every timer in the shell takes TimeProvider, when FakeTimeProvider advances 1.4 s, then ReplayManifestTests.TimersUseInjectedClock fires the armed timer without wall-clock delay."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/ReplayManifestTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-04 part 1. Manifest maps /chat->.sse, /tts and /transcribe-token->(status, headers, body or bodyFile), AssemblyAI socket->.jsonl fake transport (the transport itself lands in T-023; here only manifest schema and routing). Add Microsoft.Extensions.TimeProvider.Testing (MIT, test-only).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/7",
+      "dev_notes": "Merged after CI green on PR #7 (108/108 after clean rebuild). Manifest model+strict loader; replay unified through manifests (plain --replay synthesizes one-route); unmapped routes fail closed with InvalidOperationException before any socket; SSE pacing + linger via injected TimeProvider (FakeTimeProvider in-process test). PM merge work: Program.cs/usage combined with T-016; duplicate ClickyProcessRun type (T-001 vs T-016) caught by clean rebuild - startup-failure record renamed ClickyStartupFailureRun; CrashReportingTests added to process-serialization collection (T-016 predates T-001 flake fix). Agent deviations: DispatcherTimer watchdog left to T-007 (dispatcher-affine); test project loads shell assembly for FakeTimeProvider injection; no-socket evidence message-based (reserved .invalid host).",
       "qa_result": null
     },
     {

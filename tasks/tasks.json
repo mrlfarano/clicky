@@ -422,9 +422,9 @@
         "Given 5 s of input, when converted, then PcmConversionTests.FiveSecondsIs160000Bytes asserts 160000 B +/- 1%."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/PcmConversionTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-13 part 1 (seam 1 PcmFrameSink). Runs on linux-core-tests.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/2",
+      "dev_notes": "Merged after CI green on PR #2 (62/62 Core tests, 0 warnings). Windowed-sinc resampler (Blackman, 16 zero-crossings, 8kHz cutoff, exact frame-count rule floor(n*16000/rate)) - linear would alias into speech band; library resampler rejected in Core for purity + byte-exact chunked-output tests. RMS boost x10.2 clamp[0,1] and 0.72 decay ported from BuddyDictationManager.swift:694-709. Streaming converter with FlushRemainingAudio() guards T-020 WASAPI chunking (chunked==single-shot byte-identical test). No deviations.",
       "qa_result": null
     },
     {

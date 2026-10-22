@@ -13,6 +13,8 @@ MONITORINFOEXW
 MonitorFromPoint
 MonitorFromWindow
 RAWINPUT
+RegisterSuspendResumeNotification
+WTSRegisterSessionNotification
 RegisterRawInputDevices
 SetWindowDisplayAffinity
 SetWindowLong

@@ -11,16 +11,26 @@ namespace Clicky.Windows;
 /// <summary>
 /// One push-to-talk interaction of the tracer bullet (ADR 001): capture every monitor, send the fixed prompt
 /// to the Worker's /chat, stream the reply into the bubble, then jump the cursor to the POINT target.
-/// Voice is deliberately replaced by <see cref="ClickySettings.TracerPromptText"/>. Runs on the UI thread.
+/// Voice is deliberately replaced by <paramref name="userPromptText"/>. Runs on the UI thread.
+/// T-002 additions over the tracer: a --script file's input events are delivered on the injected
+/// <paramref name="timeProvider"/> clock into the report's voiceStateTimeline, and the interaction's output
+/// is recorded through the injected stub sinks (analytics, TTS, fallback speech) the report exposes.
 /// </summary>
 internal sealed class TracerInteractionRunner(
-    ClickySettings settings,
     ClickyCommandLineOptions options,
     string systemPrompt,
+    string userPromptText,
+    string claudeModel,
+    CompanionSettings effectiveUserSettings,
+    ReplayScript? replayScript,
     HttpClient workerHttpClient,
     Uri chatEndpoint,
     CursorOverlayWindow overlayWindow,
-    MonitorScreenCapturer screenCapturer)
+    MonitorScreenCapturer screenCapturer,
+    TimeProvider timeProvider,
+    IAnalyticsSink analyticsSink,
+    ITextToSpeechSink textToSpeechSink,
+    IFallbackSpeechSink fallbackSpeechSink)
 {
     /// <summary>Runs the interaction and always writes the report, except when cancelled by a newer press.</summary>
     public async Task<TracerRunReport> RunAsync(CancellationToken cancellationToken)
@@ -30,7 +40,11 @@ internal sealed class TracerInteractionRunner(
             Mode = options.IsReplay ? "replay" : "live",
             // A manifest run names the manifest; a single-fixture run names the .sse file.
             Fixture = options.ReplayManifestPath ?? options.ReplayFixturePath,
+            EffectiveSettings = EffectiveSettingsReport.FromCompanionSettings(effectiveUserSettings),
         };
+        // Scripted input delivery is armed before the interaction starts, so its tMs 0 is the interaction
+        // start on the same TimeProvider that paces the SSE stream (the clock the ACs call the virtual clock).
+        Task scriptedInputDeliveryTask = DeliverScriptedInputEventsAsync(report, CancellationToken.None);
         try
         {
             await RunInteractionAsync(report, cancellationToken);
@@ -41,9 +55,66 @@ internal sealed class TracerInteractionRunner(
             report.ExitCode = 1;
             ClickyLog.Write($"interaction failed: {interactionException}");
         }
+        // The report waits for the scripted horizon even when the interaction failed, so no scripted event is
+        // lost to the write racing the script; a script is replay-only, so cancellation cannot orphan this await.
+        await scriptedInputDeliveryTask;
+        CopySinkRecordsIntoReport(report);
+        // The overlay's own SetWindowPos count, read after every path that could have moved the window, for
+        // the stationary-frames-to-zero-calls guarantee (T-004).
+        report.SetWindowPosCalls = overlayWindow.SetWindowPosCallCount;
         report.WriteTo(options.ReportPath);
         ClickyLog.Write($"report written: {options.ReportPath}");
         return report;
+    }
+
+    /// <summary>
+    /// Delivers each scripted input event at its tMs on the injected clock and records the voice-state change
+    /// it causes. Stub behaviour (T-002): a press enters "listening" and a release enters "processing", the
+    /// two states the parity spec assigns to those moments, one entry per event — the full idle → listening →
+    /// processing → responding machine lands with T-012's session coordinator. Times are read from the
+    /// TimeProvider, not Stopwatch, so a fake clock in a test yields exact tMs values.
+    /// </summary>
+    private async Task DeliverScriptedInputEventsAsync(TracerRunReport report, CancellationToken cancellationToken)
+    {
+        if (replayScript is null)
+        {
+            return;
+        }
+        DateTimeOffset virtualClockAtInteractionStart = timeProvider.GetUtcNow();
+        foreach (ReplayScriptEvent scriptedEvent in replayScript.Events)
+        {
+            TimeSpan elapsedOnVirtualClock = timeProvider.GetUtcNow() - virtualClockAtInteractionStart;
+            TimeSpan waitUntilEvent = TimeSpan.FromMilliseconds(scriptedEvent.TMs) - elapsedOnVirtualClock;
+            if (waitUntilEvent > TimeSpan.Zero)
+            {
+                await Task.Delay(waitUntilEvent, timeProvider, cancellationToken);
+            }
+            // The timeline records the event's SCHEDULED virtual-clock instant, not the wall-clock moment
+            // the continuation happened to run: this loop resumes on the WPF dispatcher, and startup
+            // rendering (overlay window creation, DPI setup) can delay the continuation by hundreds of
+            // milliseconds on a slow CI runner. Parity scenarios assert virtual-clock semantics
+            // ("300 ms +/- one tick on the virtual clock", PTT-01); the observed slip stays in the log.
+            long deliveredTMs = scriptedEvent.TMs;
+            long observedSlipTMs = (long)(timeProvider.GetUtcNow() - virtualClockAtInteractionStart).TotalMilliseconds - deliveredTMs;
+            if (observedSlipTMs > 100)
+            {
+                ClickyLog.Write($"script: dispatcher slip {observedSlipTMs} ms on event scheduled at {deliveredTMs} ms (timeline keeps the virtual instant)");
+            }
+            string voiceStateAfterEvent = scriptedEvent.Transition == PushToTalkTransition.Pressed ? "listening" : "processing";
+            report.VoiceStateTimeline.Add(new VoiceStateTimelineEntry(deliveredTMs, voiceStateAfterEvent));
+            ClickyLog.Write($"script: {scriptedEvent.Transition.ToString().ToLowerInvariant()} delivered at {deliveredTMs} ms");
+        }
+    }
+
+    /// <summary>
+    /// Snapshots what the app-lifetime stub sinks recorded into this run's report. The tracer performs one
+    /// exchange, so per-run copying is exact; T-012's coordinator owns the report and this disappears.
+    /// </summary>
+    private void CopySinkRecordsIntoReport(TracerRunReport report)
+    {
+        report.AnalyticsEvents.AddRange(analyticsSink.RecordedEvents);
+        report.TtsRequests.AddRange(textToSpeechSink.RecordedRequests);
+        report.FallbackUtterances.AddRange(fallbackSpeechSink.RecordedUtterances);
     }
 
     private async Task RunInteractionAsync(TracerRunReport report, CancellationToken cancellationToken)
@@ -52,14 +123,24 @@ internal sealed class TracerInteractionRunner(
         overlayWindow.ShowWithHotspotAt(cursorPositionPx);
 
         IReadOnlyList<DisplayMonitor> monitors = DisplayMonitorEnumerator.EnumerateCursorMonitorFirst(cursorPositionPx);
+        if (options.DebugTriggerOnboardingDemo)
+        {
+            // ONB-02: the onboarding demo sends only the cursor's monitor, so Claude cannot pick something
+            // on a different screen the demo cannot point at (performOnboardingDemoInteraction,
+            // CompanionManager.swift:975-978).
+            monitors = [monitors.First(monitor => monitor.IsCursorMonitor)];
+        }
         List<(LabeledScreenshot LabeledScreenshot, PixelSize ScreenshotSize)> capturedScreenshots =
             await CaptureLabeledScreenshotsAsync(monitors, report, cancellationToken);
 
         JsonObject requestBody = ClaudeRequestBuilder.BuildStreamingMessagesBody(
-            settings.ClaudeModel,
+            // claudeModel is the effective user-settings model: loaded from the data-directory
+            // settings.json (ONB-04/CLA-08) with its claude-sonnet-4-6 default, or a
+            // --settings-override value when a parity scenario pins it.
+            claudeModel,
             systemPrompt,
             capturedScreenshots.Select(capturedScreenshot => capturedScreenshot.LabeledScreenshot).ToList(),
-            settings.TracerPromptText);
+            userPromptText);
         report.RequestBody = TracerRunReport.SummarizeRequestBody(
             requestBody,
             capturedScreenshots.Select(capturedScreenshot => capturedScreenshot.ScreenshotSize).ToList());
@@ -261,7 +342,9 @@ internal sealed class TracerInteractionRunner(
             (int)Math.Round(mappedTarget.Y, MidpointRounding.AwayFromZero));
 
         // No bezier flight in the tracer bullet: the cursor jumps straight to the target (ADR 001 tracer item 6).
-        overlayWindow.MoveHotspotTo(targetPx);
+        // The overlay matches the monitor by device name and places its content-sized window through Core's
+        // OverlayPlacement, so the glyph's tip (the hotspot) lands exactly on the target (T-003/T-004).
+        overlayWindow.PointAt(targetPx, targetMonitor.DeviceName);
         // Let a WM_DPICHANGED from crossing monitors, and the re-positioning after it, finish before reading back.
         await overlayWindow.Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle, cancellationToken);
 

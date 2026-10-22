@@ -13,6 +13,12 @@ internal static class Program
     // Replay never touches the network, so it needs no Worker URL; this is what lets CI run with none configured.
     private static readonly Uri ReplayChatEndpoint = new("http://replay.clicky.invalid/chat");
 
+    /// <summary>
+    /// The onboarding demo's fixed user text (ONB-02, CompanionManager.swift:990): the demo asks Claude to
+    /// look around and pick something to point at, unprompted, while the intro video plays.
+    /// </summary>
+    private const string OnboardingDemoUserPromptText = "look around my screen and find something interesting to point at";
+
     [STAThread]
     private static int Main(string[] commandLineArguments)
     {
@@ -30,18 +36,52 @@ internal static class Program
 
         ClickyCommandLineOptions options;
         ClickySettings settings;
-        string systemPrompt;
+        string interactionSystemPrompt;
+        string interactionUserPromptText;
+        string effectiveClaudeModel;
+        CompanionSettings effectiveUserSettings;
+        ClickyUserSettingsStore userSettingsStore;
         Uri chatEndpoint;
         ReplayManifest? replayManifest;
+        ReplayScript? replayScript;
         try
         {
             options = ClickyCommandLineOptions.Parse(commandLineArguments);
             settings = ClickySettings.LoadFromApplicationDirectory();
-            systemPrompt = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "prompts", "companion-voice-response.txt"));
+            // The user's settings load right after the ship-time file so the app has one merged view from
+            // the first line of startup (ONB-04): defaults <- <data directory>\settings.json. A corrupt
+            // file is not fatal — the merger returns every default and flags it, and the next settings
+            // change rewrites the file valid (WS-12).
+            userSettingsStore = new ClickyUserSettingsStore();
+            CompanionSettingsMergeResult userSettingsMergeResult = userSettingsStore.Load();
+            if (userSettingsMergeResult.UserSettingsFileWasCorrupt)
+            {
+                ClickyLog.Write("settings: user settings file is corrupt; using defaults, the next change rewrites it");
+            }
+            // The --settings-override replay-harness layer applies over whatever was loaded (defaults <-
+            // settings.json) and lands in the report's effectiveSettings section; it is never persisted —
+            // only --set-setting writes, through the store.
+            effectiveUserSettings = CompanionSettingsOverrideApplier.Apply(userSettingsMergeResult.Settings, options.SettingsOverrides);
+            // The model lives only in user settings (T-018 removed the appsettings copy): the loaded value
+            // with its claude-sonnet-4-6 default, or the override when a parity scenario pins it (CLA-08).
+            effectiveClaudeModel = effectiveUserSettings.SelectedClaudeModel;
+            interactionSystemPrompt = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "prompts", "companion-voice-response.txt"));
+            // --debug-trigger-onboarding-demo runs the ONB-02 demo interaction instead of the tracer prompt:
+            // the demo system prompt (shared/prompts/onboarding-demo.txt) and the demo's fixed user text.
+            if (options.DebugTriggerOnboardingDemo)
+            {
+                interactionSystemPrompt = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "prompts", "onboarding-demo.txt"));
+                interactionUserPromptText = OnboardingDemoUserPromptText;
+            }
+            else
+            {
+                interactionUserPromptText = settings.TracerPromptText;
+            }
             // --debug-crash must run with zero configuration on any machine (it is a crash-reporting test
             // hook, T-016), and it crashes before any request is made, so it takes the inert replay
-            // endpoint instead of demanding WorkerBaseUrl like a real live session does.
-            chatEndpoint = options.IsReplay || options.DebugCrashRequested
+            // endpoint instead of demanding WorkerBaseUrl like a real live session does. --set-setting
+            // makes no request either; it only loads and writes the user's settings file.
+            chatEndpoint = options.IsReplay || options.DebugCrashRequested || options.UserSettingsChange is not null
                 ? ReplayChatEndpoint
                 : settings.TryGetChatEndpoint()
                     ?? throw new CommandLineUsageException("Live mode needs WorkerBaseUrl in appsettings.json set to the deployed Worker's https URL.");
@@ -52,6 +92,7 @@ internal static class Program
                 : options.ReplayFixturePath is string replayFixturePath
                     ? ReplayManifest.CreateForSingleChatFixture(replayFixturePath)
                     : null;
+            replayScript = options.ScriptPath is string scriptFilePath ? ReplayScript.LoadFrom(scriptFilePath) : null;
         }
         catch (Exception startupException) when (startupException is CommandLineUsageException or InvalidDataException or IOException or JsonException)
         {
@@ -69,7 +110,9 @@ internal static class Program
         {
             try
             {
-                await RunAsync(application, options, settings, systemPrompt, chatEndpoint, replayManifest, TimeProvider.System);
+                await RunAsync(
+                    application, options, settings, interactionSystemPrompt, interactionUserPromptText, effectiveClaudeModel,
+                    effectiveUserSettings, userSettingsStore, chatEndpoint, replayManifest, replayScript, TimeProvider.System);
             }
             catch (Exception unexpectedException)
             {
@@ -84,11 +127,30 @@ internal static class Program
         Application application,
         ClickyCommandLineOptions options,
         ClickySettings settings,
-        string systemPrompt,
+        string interactionSystemPrompt,
+        string interactionUserPromptText,
+        string effectiveClaudeModel,
+        CompanionSettings effectiveUserSettings,
+        ClickyUserSettingsStore userSettingsStore,
         Uri chatEndpoint,
         ReplayManifest? replayManifest,
+        ReplayScript? replayScript,
         TimeProvider timeProvider)
     {
+        // --set-setting is the tracer stand-in for a panel settings change (the panel lands in WS-18/19):
+        // apply exactly one change through the real persistence path — load-merged settings in, atomic
+        // write out — and exit, so one process run equals "the app started and one setting changed".
+        if (options.UserSettingsChange is ClickyUserSettingsChange requestedUserSettingsChange)
+        {
+            // --set-setting cannot be combined with --settings-override (parse rejects the mix), so the
+            // effective settings here are exactly the loaded ones.
+            CompanionSettings updatedUserSettings = requestedUserSettingsChange.ApplyToCompanionSettings(effectiveUserSettings);
+            userSettingsStore.Save(updatedUserSettings);
+            ClickyLog.Write($"settings: saved {requestedUserSettingsChange.SettingsFileKeyName} to {userSettingsStore.SettingsFilePath}");
+            application.Shutdown(exitCode: 0);
+            return;
+        }
+
         var overlayWindow = new CursorOverlayWindow();
         overlayWindow.CreateHiddenWindowHandle();
 
@@ -99,12 +161,37 @@ internal static class Program
         // One HttpClient for the life of the app, so connections and TLS sessions are reused across presses.
         var workerHttpClient = new HttpClient(workerMessageHandler) { Timeout = TimeSpan.FromSeconds(120) };
 
+        // The T-002 in-memory sinks record what the interaction outputs; replay (and live, until the real
+        // sinks land) thereby answers nothing to PostHog and opens no audio device.
+        var analyticsSink = new InMemoryAnalyticsSink();
+        var textToSpeechSink = new InMemoryTextToSpeechSink();
+        var fallbackSpeechSink = new InMemoryFallbackSpeechSink();
+
         var interactionRunner = new TracerInteractionRunner(
-            settings, options, systemPrompt, workerHttpClient, chatEndpoint, overlayWindow, new MonitorScreenCapturer());
+            options,
+            interactionSystemPrompt,
+            interactionUserPromptText,
+            effectiveClaudeModel,
+            effectiveUserSettings,
+            replayScript,
+            workerHttpClient,
+            chatEndpoint,
+            overlayWindow,
+            new MonitorScreenCapturer(),
+            timeProvider,
+            analyticsSink,
+            textToSpeechSink,
+            fallbackSpeechSink);
 
         if (options.IsReplay)
         {
             ClickyLog.Write($"replay: {options.ReplayManifestPath ?? options.ReplayFixturePath} (event delay {options.ReplayEventDelay.TotalMilliseconds} ms)");
+            if (options.DebugTriggerOnboardingDemo)
+            {
+                // ONB-02: the demo fires its own analytics event, so a report of a demo run proves the
+                // analytics sink recorded it — the stub's counterpart of ClickyAnalytics's onboarding_demo_triggered.
+                analyticsSink.TrackEvent("onboarding_demo_triggered");
+            }
             TracerRunReport report = await interactionRunner.RunAsync(CancellationToken.None);
             // --linger-ms keeps the cursor on screen so QA can photograph where it landed (parity spec PNT-04).
             // The TimeProvider overload (not the bare Task.Delay) is what lets a fake clock fire this.
@@ -127,7 +214,7 @@ internal static class Program
             RaiseDeliberateDebugCrash();
         }
 
-        var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(settings.PushToTalkShortcut, options.StallFirstHookCallback);
+        var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(effectiveUserSettings.PushToTalkShortcut, options.StallFirstHookCallback);
         CancellationTokenSource? currentInteractionCancellation = null;
         // The monitor itself logs every transition ("ptt pressed" / "ptt released", T-007): the privacy rule
         // that log lines carry transitions and state but never vk or scan codes lives next to the key events.
@@ -152,7 +239,7 @@ internal static class Program
             }
         });
         shortcutMonitor.Start();
-        ClickyLog.Write($"live: listening for {settings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}. Ctrl+C quits.");
+        ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}. Ctrl+C quits.");
     }
 
     /// <summary>

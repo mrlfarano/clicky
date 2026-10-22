@@ -17,6 +17,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.183" PrivateAssets="all" />
+    <!-- WASAPI shared-mode mic capture + MMDeviceEnumerator/IMMNotificationClient (WS-13/T-020, audit row F1).
+         NAudio is MIT; the choice over raw CsWin32 bindings is justified in NAudioMicrophoneCapture.cs.
+         This is the 2.x package that carries the NAudio.CoreAudioApi namespace (WasapiCapture, MMDeviceEnumerator). -->
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <!-- Velopack install/update hooks (ADR 001 "Packaging": per-user Setup.exe, no MSIX).
          Keep this version in lockstep with the vpk tool pinned in .github/workflows/ci.yml;
          PackagingWorkflowTests.PackUsesWinBetaChannelAndPinnedVpk fails the build if they drift. -->
@@ -41,7 +45,8 @@
 
   <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Seam 10: the system prompt is shared with the Mac app as a file, not a string literal. -->
+    <!-- Seam 10: the system prompts are shared with the Mac app as files, not string literals. -->
     <None Include="..\..\..\shared\prompts\companion-voice-response.txt" Link="prompts\companion-voice-response.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\shared\prompts\onboarding-demo.txt" Link="prompts\onboarding-demo.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -38,9 +38,9 @@
         "Given stubbed audio and analytics sinks, when replay runs, then ReplayHarnessFlagsTests.SinksAreStubbed asserts no outbound request to posthog.com and no audio device is opened."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/ReplayHarnessFlagsTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-04 part 2. New report fields stay empty until T-012/T-029/T-044 populate them.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/11",
+      "dev_notes": "SALVAGE NOTE: dev agent committed df74f74 fully green (115/115, 7 tests incl. 4 AC-named) then died on ZCode sub-agent quota exhaustion (reset 2026-10-27) before reporting; PM verified the orphaned commit and merged with T-018: ClickyUserSettingsStore load feeds CompanionSettingsOverrideApplier (overrides land in report effectiveSettings, never persisted - only --set-setting writes), model precedence unified to effectiveUserSettings.SelectedClaudeModel (appsettings model removed by T-018), runner ctor union with stub sinks + replayScript, --set-setting applies to effective settings (parse rejects mixing with --settings-override). 125/125 post-merge clean rebuild. Report fields: voiceStateTimeline, analyticsEvents, ttsRequests, fallbackUtterances from InMemory stub sinks.",
       "qa_result": null
     },
     {
@@ -88,9 +88,9 @@
         "Given a WM_DISPLAYCHANGE message, when handled, then OverlayMoveTests.MonitorsReenumerated asserts the monitor list is re-read."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/ReplayEndToEndTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-01 part 2. QA-matrix: ADR acceptance 8 and 11 (4 PNT-04 runs <= 4 px on the mixed-DPI rig; one buddy for PNT-05); 4K@150% cursor-follow < 2% of one core over 60 s via Get-Counter. Decision CLA-04: bubble kept while processing; Mac 'responding' visuals from TTS start (visuals land in T-042).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/12 (+ fix #13)",
+      "dev_notes": "Merged via PR #12 + timing fix PR #13 (133/133 clean rebuild). Content-sized moving window: SetWindowPos position+size in physical px, monitor matched by device name (WM_DISPLAYCHANGE re-enum), WM_DPICHANGED rescale, change-gated applier (60 stationary frames = 0 calls, asserted via setWindowPosCalls report counter), WDA_EXCLUDEFROMCAPTURE preserved, OverlayPlacement (T-003) drives placement. Live-verified on 2-monitor rig: hotspot==target exactly. INCIDENT (PM): PR #12 merged while windows-build red - PM merge script broke poll on any terminal conclusion and admin bypassed required checks. Root cause of red: T-002 ScriptedPressIsDelivered measured wall-clock at dispatcher-continuation time; T-004 startup rendering delays continuation ~650ms on slow CI. Fix in #13: timeline records scheduled virtual instant (AC: on the virtual clock), slip>100ms logged. Hardenings: enforce_admins=true on feature/windows-build (platform-gated merges, no admin bypass), merge script requires all 3 checks == success. Deviations: StreamingBubbleVisibleWithin300ms bound relative to event delivery (ADR acceptance 9 wording); QA-matrix items (mixed-DPI 4px rig, 60s CPU, z-order) remain for phase 7.",
       "qa_result": null
     },
     {
@@ -316,9 +316,9 @@
         "Given settings.json, logs and crashes beside the current folder, when a second package is applied, then PackagingWorkflowTests.UserDataOutsideCurrentSurvives asserts they are untouched."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-08 part 2. Uninstall removes user data (accepted).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/9",
+      "dev_notes": "Merged after CI green on PR #9 - installed-replay step verified on real windows-latest runner. Step: silent Setup.exe install (-s verified via --help locally), seed user data, run INSTALLED Clicky.exe --replay with absolute fixture path (installed copy needs nothing repo-shaped), apply second package via Update.exe apply -s --norestart, assert sq.version bumped + user-data SHA256 identical. KEY FINDING (verified locally, reproduced twice): Setup.exe full install WIPES settings.json/logs/crashes beside current; Update.exe staged apply preserves byte-identical. CI tests the update path; documented in ci.yml. RELEASE NOTE: users must update via the updater, never re-run Setup.exe. Local dress rehearsal of exact step logic ran green before push.",
       "qa_result": null
     },
     {
@@ -402,9 +402,9 @@
         "Given appsettings.json, when read, then SettingsPersistenceTests.ShipTimeKeysPresent asserts WorkerBaseUrl, UpdateFeedUrl, PostHog host/key and model list exist, and the version comes from the assembly (A7)."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/SettingsPersistenceTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-12 part 2. Atomic write = temp + File.Replace. QA-matrix: file contents before/after restart.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/8",
+      "dev_notes": "Merged after CI green on PR #8 (112/112 clean rebuild; first wave-2 merge, landed clean). ClickyUserSettingsStore: load+merge via T-017 Core merger, atomic temp+File.Replace (plain rename first write), unrecognized keys round-trip, CLICKY_DATA_DIR honored, test-only interrupt seam between temp write and swap. Ship-time appsettings split per WS-12: WorkerBaseUrl/UpdateFeedUrl(empty=off)/PostHog host+key/ClaudeModels; ClaudeModel+PushToTalkShortcut moved to user settings; version from assembly (A7). Deviations: --set-setting CLI hook (no UI yet; process-level AC trigger, T-016 --debug-crash precedent; rejects combining with replay/record/debug-crash); replay harness isolated to throwaway CLICKY_DATA_DIR (dev settings would flake replay + model assertion updated to CompanionSettings.DefaultClaudeModel).",
       "qa_result": null
     },
     {
@@ -446,9 +446,9 @@
         "Given E_ACCESSDENIED from a fake IAudioClient.Initialize, when probed, then MicPermissionTests.AccessDeniedMapsToDenied asserts state denied."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/MicPermissionTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-13 part 2 (F4 spike: AppCapability.Create('microphone').CheckAccess(), fall back to E_ACCESSDENIED). NAudio WasapiCapture shared mode. MicCaptureReplayTests live in windows/tests/Clicky.Windows.Tests/MicCaptureReplayTests.cs. QA-matrix: PNL-04 on the VM - toggle the desktop-app mic privacy switch, detected within 1.5 s both ways.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/10",
+      "dev_notes": "Merged after CI green on PR #10. NAudio.Wasapi 2.2.1 shared-mode capture (audit F1 approved equivalent; package id corrected from plan namespace name NAudio.CoreAudioApi), IMMNotificationClient default-device reopen (same-format byte-continuous, 64000B exact), MicrophonePermissionDetector in Core with injected clock - flips within 1500ms both directions (AppCapability on 19041+ with E_ACCESSDENIED trial-Initialize fallback per F4). Fake-source tests (160000B+-1%/5s) keep CI honest with no mic; live WASAPI probe compiles but is VM-QA evidence (PNL-04). Not yet wired into live mode (T-021+ per plan; T-019 precedent). WaitUntilAsync wall-clock helper only for continuation scheduling; all timestamps from virtual clock.",
       "qa_result": null
     },
     {

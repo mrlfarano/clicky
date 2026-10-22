@@ -2,7 +2,7 @@
   "schema": 1,
   "seam": "screen-mapping",
   "swiftAnchor": "leanring-buddy/CompanionManager.swift:638-677",
-  "description": "Seam 3 (ScreenshotToScreenMapper) plus the screenshot sizing it depends on. input.operation picks the function. Monitor rects are virtual-screen physical pixels with a top-left origin, so the Swift AppKit y-flip has no counterpart. Expected values are worked out by hand, never by running the mapper. Parity spec PNT-02, PNT-03.",
+  "description": "Seam 3 (ScreenshotToScreenMapper) plus the screenshot sizing it depends on, plus the overlay placement that consumes the mapped point (OverlayPlacement, decision PNT-04). input.operation picks the function. Monitor rects are virtual-screen physical pixels with a top-left origin, so the Swift AppKit y-flip has no counterpart. Expected values are worked out by hand, never by running the code under test. Parity spec PNT-02, PNT-03, PNT-04.",
   "cases": [
     {
       "id": "screen2-of-2-selected",
@@ -89,6 +89,78 @@
       "note": "The long edge is always 1280, even when the monitor is smaller, as on macOS.",
       "input": { "operation": "computeScreenshotSize", "monitorSizePx": { "width": 1024, "height": 768 } },
       "expected": { "width": 1280, "height": 960 }
+    },
+    {
+      "id": "place-overlay-roomy-no-flip",
+      "branch": "place-no-flip",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "PNT-04 decision: tip (the hotspot) exactly on the target; the Mac's 8/12 pt buddy offset moves to the bubble as its gap. rcWork (0,0,1920,1032), inset lines at 20/1900 x, 20/1012 y. Bubble default right/below: left 960+8=968 (far 1128 <= 1900), top 500+12=512 (far 560 <= 1012). Window = union(glyph [960,500,18,18], bubble) -> right max(978,1128)=1128, bottom max(518,560)=560.",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.0, "targetPx": { "x": 960, "y": 500 }, "workAreaPx": { "left": 0, "top": 0, "width": 1920, "height": 1032 }, "bubbleSizeDip": { "width": 160, "height": 48 } },
+      "expected": { "hotspotPx": { "x": 960, "y": 500 }, "windowRectPx": { "left": 960, "top": 500, "width": 168, "height": 60 }, "bubbleRectPx": { "left": 968, "top": 512, "width": 160, "height": 48 }, "bubbleHorizontalSide": "right", "bubbleVerticalSide": "below" }
+    },
+    {
+      "id": "place-overlay-flips-left-at-right-edge",
+      "branch": "place-flip-left",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "Default right side would end at 1888+160=2048 > 1900, so the bubble flips left with the same 8 px gap: left 1880-8-160=1712 (far 1872 <= 1900). Window = union(glyph [1880,500,18,18], bubble [1712,512,160,48]) -> left 1712, right max(1898,1872)=1898.",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.0, "targetPx": { "x": 1880, "y": 500 }, "workAreaPx": { "left": 0, "top": 0, "width": 1920, "height": 1032 }, "bubbleSizeDip": { "width": 160, "height": 48 } },
+      "expected": { "hotspotPx": { "x": 1880, "y": 500 }, "windowRectPx": { "left": 1712, "top": 500, "width": 186, "height": 60 }, "bubbleRectPx": { "left": 1712, "top": 512, "width": 160, "height": 48 }, "bubbleHorizontalSide": "left", "bubbleVerticalSide": "below" }
+    },
+    {
+      "id": "place-overlay-flips-above-at-bottom-edge",
+      "branch": "place-flip-above",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "Default below would end at 1012+48=1060 > 1012, so the bubble flips above with the same 12 px gap: top 1000-12-48=940 (far 988 <= 1012). Window = union(glyph [400,1000,18,18], bubble [408,940,160,48]) -> top 940, bottom max(1018,988)=1018.",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.0, "targetPx": { "x": 400, "y": 1000 }, "workAreaPx": { "left": 0, "top": 0, "width": 1920, "height": 1032 }, "bubbleSizeDip": { "width": 160, "height": 48 } },
+      "expected": { "hotspotPx": { "x": 400, "y": 1000 }, "windowRectPx": { "left": 400, "top": 940, "width": 168, "height": 78 }, "bubbleRectPx": { "left": 408, "top": 940, "width": 160, "height": 48 }, "bubbleHorizontalSide": "right", "bubbleVerticalSide": "above" }
+    },
+    {
+      "id": "place-overlay-clamped-at-left-edge",
+      "branch": "place-clamp-left",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "The bubble's default side (right of the hotspot) already has room, so it does not flip; flipping left would only move it further out. The default left 10+8=18 sits inside the 20 px left inset line, so the clamp lifts it to 20. Window = union(glyph [10,500,18,18], bubble [20,512,160,48]) -> left 10, right max(28,180)=180.",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.0, "targetPx": { "x": 10, "y": 500 }, "workAreaPx": { "left": 0, "top": 0, "width": 1920, "height": 1032 }, "bubbleSizeDip": { "width": 160, "height": 48 } },
+      "expected": { "hotspotPx": { "x": 10, "y": 500 }, "windowRectPx": { "left": 10, "top": 500, "width": 170, "height": 60 }, "bubbleRectPx": { "left": 20, "top": 512, "width": 160, "height": 48 }, "bubbleHorizontalSide": "right", "bubbleVerticalSide": "below" }
+    },
+    {
+      "id": "place-overlay-clamped-at-top-edge",
+      "branch": "place-clamp-top",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "Same as the left edge on the vertical axis: no flip, the clamp lifts the default top 5+12=17 to the 20 px top inset line. Window = union(glyph [400,5,18,18], bubble [408,20,160,48]) -> top 5, bottom max(23,68)=68.",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.0, "targetPx": { "x": 400, "y": 5 }, "workAreaPx": { "left": 0, "top": 0, "width": 1920, "height": 1032 }, "bubbleSizeDip": { "width": 160, "height": 48 } },
+      "expected": { "hotspotPx": { "x": 400, "y": 5 }, "windowRectPx": { "left": 400, "top": 5, "width": 168, "height": 63 }, "bubbleRectPx": { "left": 408, "top": 20, "width": 160, "height": 48 }, "bubbleHorizontalSide": "right", "bubbleVerticalSide": "below" }
+    },
+    {
+      "id": "place-overlay-flips-both-at-corner",
+      "branch": "place-flip-left-and-above",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "Both axes flip at once near the bottom-right corner: bubble left 1880-8-160=1712, top 1000-12-48=940. Window = union(glyph [1880,1000,18,18], bubble [1712,940,160,48]) -> (1712,940) to (1898,1018).",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.0, "targetPx": { "x": 1880, "y": 1000 }, "workAreaPx": { "left": 0, "top": 0, "width": 1920, "height": 1032 }, "bubbleSizeDip": { "width": 160, "height": 48 } },
+      "expected": { "hotspotPx": { "x": 1880, "y": 1000 }, "windowRectPx": { "left": 1712, "top": 940, "width": 186, "height": 78 }, "bubbleRectPx": { "left": 1712, "top": 940, "width": 160, "height": 48 }, "bubbleHorizontalSide": "left", "bubbleVerticalSide": "above" }
+    },
+    {
+      "id": "place-overlay-hotspot-outside-work-area",
+      "branch": "place-clamp-after-flip",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "The monitor's bottom-right corner (1919,1079) lies outside rcWork (the taskbar band), yet PNT-04 keeps the hotspot exactly on the target; only the bubble obeys the work area. Both axes flip first (left 1919-8-160=1751, top 1079-12-48=1019), and because even the flipped sides overflow the inset lines (1751+160=1911 > 1900, 1019+48=1067 > 1012), the clamp pulls the bubble to [1740,1900] x [964,1012]. Window = union(glyph [1919,1079,18,18], bubble) -> (1740,964) to (1937,1097).",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.0, "targetPx": { "x": 1919, "y": 1079 }, "workAreaPx": { "left": 0, "top": 0, "width": 1920, "height": 1032 }, "bubbleSizeDip": { "width": 160, "height": 48 } },
+      "expected": { "hotspotPx": { "x": 1919, "y": 1079 }, "windowRectPx": { "left": 1740, "top": 964, "width": 197, "height": 133 }, "bubbleRectPx": { "left": 1740, "top": 964, "width": 160, "height": 48 }, "bubbleHorizontalSide": "left", "bubbleVerticalSide": "above" }
+    },
+    {
+      "id": "place-overlay-negative-origin-150pct",
+      "branch": "place-negative-origin-150pct",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "The ADR acceptance-8 rig's secondary monitor: 1920x1080 at 150% left of the primary -> physical 2880x1620 at (-2880,0), rcWork (-2880,0,2880,1548) after a 48-DIP (72 px) taskbar. Target is the quarter-screen point (-2880+0.25*2880, 0.25*1620) = (-2160,405). At 150%: inset 30, gaps 12/18, glyph 27, bubble 120x40 DIP -> 180x60 px; inset lines at -2850/-30 x, 30/1518 y. Default right/below fits: left -2148 (far -1968 <= -30), top 423. Window = union(glyph [-2160,405,27,27], bubble [-2148,423,180,60]) -> (-2160,405) to (-1968,483).",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.5, "targetPx": { "x": -2160, "y": 405 }, "workAreaPx": { "left": -2880, "top": 0, "width": 2880, "height": 1548 }, "bubbleSizeDip": { "width": 120, "height": 40 } },
+      "expected": { "hotspotPx": { "x": -2160, "y": 405 }, "windowRectPx": { "left": -2160, "top": 405, "width": 192, "height": 78 }, "bubbleRectPx": { "left": -2148, "top": 423, "width": 180, "height": 60 }, "bubbleHorizontalSide": "right", "bubbleVerticalSide": "below" }
+    },
+    {
+      "id": "place-overlay-negative-origin-150pct-flip",
+      "branch": "place-negative-origin-150pct-flip",
+      "swiftAnchor": "leanring-buddy/OverlayWindow.swift:463-474",
+      "note": "Same secondary monitor, target 8 px from the right inset line: the default right side would end at -68+180=112 > -30, so the bubble flips left with a 12 px gap: left -80-12-180=-272 (far -92 <= -30). Window = union(glyph [-80,405,27,27], bubble [-272,423,180,60]) -> (-272,405) to (-53,483).",
+      "input": { "operation": "placeOverlay", "dpiScale": 1.5, "targetPx": { "x": -80, "y": 405 }, "workAreaPx": { "left": -2880, "top": 0, "width": 2880, "height": 1548 }, "bubbleSizeDip": { "width": 120, "height": 40 } },
+      "expected": { "hotspotPx": { "x": -80, "y": 405 }, "windowRectPx": { "left": -272, "top": 405, "width": 219, "height": 78 }, "bubbleRectPx": { "left": -272, "top": 423, "width": 180, "height": 60 }, "bubbleHorizontalSide": "left", "bubbleVerticalSide": "below" }
     }
   ]
 }

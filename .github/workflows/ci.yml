@@ -8,7 +8,8 @@
 # CHECK NAMES ARE A CONTRACT. Branch protection requires them by name.
 # Renaming a job silently drops it from the required checks.
 #   macos-parity      golden-vector schema, worker build, parity-spec link lint
-#   windows-build     build, Core tests, replay e2e, package, (sign), Defender scan
+#   windows-build     build, Core tests, replay e2e, publish, (sign), vpk pack,
+#                     assert-artifacts, Defender scan
 #   linux-core-tests  Clicky.Core.Tests on Linux
 #
 # BRANCH PROTECTION cannot be configured from the repo. The owner sets it in
@@ -260,13 +261,55 @@ jobs:
           }
 
       - name: Package
-        # Velopack `vpk pack` is the chosen installer (ADR "Packaging"), but packaging
-        # is OUT of the tracer bullet, and vpk needs the app to reference the Velopack
-        # SDK, which the tracer does not. Until then, ship a zip.
-        # TODO(phase 4): replace with
-        #   dotnet tool install -g vpk --version <same as Velopack NuGet>
-        #   vpk pack --packId Clicky --packVersion <ver> --packDir ../artifacts/publish --mainExe Clicky.exe --outputDir ../artifacts/package
-        run: Compress-Archive -Path ../artifacts/publish/* -DestinationPath ../artifacts/package/Clicky-win-x64.zip -Force
+        # Velopack `vpk pack` replaces the tracer-bullet zip (ADR 001 "Packaging":
+        # Velopack primary, per-user Setup.exe, no MSIX).
+        #
+        # The vpk tool is PINNED to 1.2.161, the same version as the Velopack NuGet
+        # reference in windows/src/Clicky.Windows/Clicky.Windows.csproj: the packer and
+        # the app's VelopackApp hooks must agree on the package format.
+        # PackagingWorkflowTests.PackUsesWinBetaChannelAndPinnedVpk fails the build if
+        # the two pins drift apart.
+        #
+        # Version scheme: 0.1.0-ci.<run number>.
+        #   - "0.1.0" is the Windows pre-release SemVer base; bump it here (and only
+        #     here) when a beta cycle is cut.
+        #   - "-ci.<run number>" makes every CI build a unique, monotonically increasing
+        #     pre-release of that base on the win-beta channel, so later builds always
+        #     sort newer than earlier ones without git tags.
+        # --packDir is the win-x64 self-contained publish output, and --runtime win-x64
+        # makes vpk's architecture explicit (without it vpk warns and assumes x86).
+        # vpk's Setup.exe installs per-user into %LOCALAPPDATA% with no admin rights by
+        # default (no --machine / --msi), which is what ADR 001 requires.
+        run: |
+          dotnet tool install -g vpk --version 1.2.161
+          $packVersion = "0.1.0-ci.$env:GITHUB_RUN_NUMBER"
+          vpk pack --packId Clicky --packVersion $packVersion --packTitle Clicky --runtime win-x64 `
+            --channel win-beta --mainExe Clicky.exe `
+            --packDir ../artifacts/publish --outputDir ../artifacts/package
+
+      - name: assert-artifacts
+        # Fails fast, before the Defender scan and the upload, unless vpk produced the
+        # full win-beta release set (T-013): the per-user installer (vpk names it
+        # '<packId>-<channel>-Setup.exe'), exactly one full .nupkg and the channel's
+        # releases manifest.
+        run: |
+          $packageDirectory = "../artifacts/package"
+          $setupExeFiles = @(Get-ChildItem (Join-Path $packageDirectory "*-Setup.exe"))
+          if ($setupExeFiles.Count -ne 1) {
+            Write-Host "::error::assert-artifacts: expected exactly one Setup.exe (*-Setup.exe) in $packageDirectory, found $($setupExeFiles.Count)"
+            exit 1
+          }
+          $fullNupkgFiles = @(Get-ChildItem (Join-Path $packageDirectory "*-full.nupkg"))
+          if ($fullNupkgFiles.Count -ne 1) {
+            Write-Host "::error::assert-artifacts: expected exactly one full .nupkg in $packageDirectory, found $($fullNupkgFiles.Count)"
+            exit 1
+          }
+          $releasesManifestPath = Join-Path $packageDirectory "releases.win-beta.json"
+          if (-not (Test-Path $releasesManifestPath)) {
+            Write-Host "::error::assert-artifacts: releases.win-beta.json is missing from $packageDirectory"
+            exit 1
+          }
+          Write-Host "assert-artifacts: Setup.exe $([Math]::Round($setupExeFiles[0].Length / 1MB, 1)) MB ($($setupExeFiles[0].Name)), $($fullNupkgFiles[0].Name), releases.win-beta.json OK"
 
       - name: Defender scan of packaged output
         # MpCmdRun exit codes for `-Scan -ScanType 3 -DisableRemediation`:
@@ -278,6 +321,9 @@ jobs:
         # -DisableRemediation also makes the custom scan ignore Defender's file
         # exclusions and scan inside archives, so the runner image's exclusions
         # cannot turn this into a silent no-op.
+        # ../artifacts/package now holds the Velopack output — the Setup.exe, the full
+        # .nupkg (an archive the scan opens) and releases.win-beta.json — so both
+        # packaged files T-013 names are covered, alongside the raw publish directory.
         run: |
           $mpCmdRun = Join-Path $env:ProgramFiles "Windows Defender\MpCmdRun.exe"
           if (-not (Test-Path $mpCmdRun)) { throw "defender: MpCmdRun.exe not found at $mpCmdRun" }
@@ -303,7 +349,8 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: windows-build-${{ github.run_attempt }}
-          # publish/ is already inside the zip, so upload the zip, logs and test results only.
+          # publish/ is packed inside the Velopack full .nupkg, so the package dir
+          # (Setup.exe, .nupkg, releases.win-beta.json), logs and test results are enough.
           path: |
             artifacts/logs/
             artifacts/test-results/

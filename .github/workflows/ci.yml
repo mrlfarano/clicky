@@ -8,8 +8,9 @@
 # CHECK NAMES ARE A CONTRACT. Branch protection requires them by name.
 # Renaming a job silently drops it from the required checks.
 #   macos-parity      golden-vector schema, worker build, parity-spec link lint
-#   windows-build     build, Core tests, replay e2e, publish, (sign), vpk pack,
-#                     assert-artifacts, Defender scan, installed-replay
+#   windows-build     build, Core tests, replay e2e, publish, sign (secret-gated),
+#                     vpk pack, assert-artifacts, verify-signature, Defender scan,
+#                     installed-replay
 #   linux-core-tests  Clicky.Core.Tests on Linux
 #
 # BRANCH PROTECTION cannot be configured from the repo. The owner sets it in
@@ -234,30 +235,76 @@ jobs:
         # (ADR acceptance list), which has no .NET 10 runtime installed.
         run: dotnet publish src/Clicky.Windows -c Release -r win-x64 --self-contained true -o ../artifacts/publish "-bl:../artifacts/logs/publish.binlog"
 
-      - name: Sign (phase-gated; no-op without SIGNING_* secrets)
-        # Phase 5 provisions signing (ADR "Signing": Azure Trusted Signing preferred,
-        # OV .pfx fallback). This step handles the .pfx fallback. Fork PRs never
-        # receive secrets, so they always take the skip path.
-        # TODO(phase 5): switch to the Trusted Signing dlib once the account exists,
-        # and sign Setup.exe and the update packages as well.
+      - name: Sign
+        id: sign
+        # T-015 / WS-09: picks how the Package step's `vpk pack` signs Clicky.exe (and the
+        # other unsigned binaries in the publish output), Update.exe and Setup.exe. vpk
+        # signs while it packs, so the .nupkg and Setup.exe carry the signed binaries, and
+        # it runs before verify-signature, the Defender scan and installed-replay.
+        # vpk 1.2.161 bundles its own signtool.exe and the Trusted Signing dlib
+        # (vendor/signing), so no Windows SDK lookup on the runner is needed.
+        #
+        # SECRETS CONTRACT (repository secrets; fork PRs receive none):
+        #   Azure Trusted Signing, primary. All six are required:
+        #     TRUSTED_SIGNING_ENDPOINT             account endpoint, e.g. https://eus.codesigning.azure.net/
+        #     TRUSTED_SIGNING_ACCOUNT_NAME         Trusted Signing account name
+        #     TRUSTED_SIGNING_CERTIFICATE_PROFILE  certificate profile name
+        #     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+        #                                          app registration holding the Certificate
+        #                                          Profile Signer role on that profile; the
+        #                                          dlib's DefaultAzureCredential reads them
+        #   OV certificate, fallback when Trusted Signing is not configured. Both required:
+        #     SIGNING_CERT_PFX_BASE64              the .pfx, base64-encoded
+        #     SIGNING_PASSWORD                     the .pfx password
+        #   Repository VARIABLE (not a secret), read by verify-signature:
+        #     SIGNING_EXPECTED_SUBJECT             the signer certificate's full Subject string
+        # Timestamps: Trusted Signing uses http://timestamp.acs.microsoft.com (built into
+        # vpk); the OV path uses http://timestamp.digicert.com.
+        #
+        # With none of these secrets the step logs `signing: SKIPPED` and the job stays
+        # green with unsigned output. A half-configured path fails instead, so a missing
+        # or misspelled secret cannot silently ship unsigned binaries.
         env:
+          TRUSTED_SIGNING_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.TRUSTED_SIGNING_ACCOUNT_NAME }}
+          TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           SIGNING_CERT_PFX_BASE64: ${{ secrets.SIGNING_CERT_PFX_BASE64 }}
-          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
-          if (-not $env:SIGNING_CERT_PFX_BASE64) {
-            Write-Host "signing: SKIPPED - secret SIGNING_CERT_PFX_BASE64 is not set (expected before phase 5). Artifacts are unsigned."
+          $trustedSigningSecretNames = @('TRUSTED_SIGNING_ENDPOINT', 'TRUSTED_SIGNING_ACCOUNT_NAME', 'TRUSTED_SIGNING_CERTIFICATE_PROFILE', 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET')
+          $ovCertificateSecretNames = @('SIGNING_CERT_PFX_BASE64', 'SIGNING_PASSWORD')
+          $configuredTrustedSigningSecretNames = @($trustedSigningSecretNames | Where-Object { [Environment]::GetEnvironmentVariable($_) })
+          $configuredOvCertificateSecretNames = @($ovCertificateSecretNames | Where-Object { [Environment]::GetEnvironmentVariable($_) })
+
+          if ($configuredTrustedSigningSecretNames.Count -eq $trustedSigningSecretNames.Count) {
+            # The metadata file vpk hands to the dlib via `signtool /dmdf`.
+            @{
+              Endpoint = $env:TRUSTED_SIGNING_ENDPOINT
+              CodeSigningAccountName = $env:TRUSTED_SIGNING_ACCOUNT_NAME
+              CertificateProfileName = $env:TRUSTED_SIGNING_CERTIFICATE_PROFILE
+            } | ConvertTo-Json | Set-Content -Path (Join-Path $env:RUNNER_TEMP "trusted-signing-metadata.json")
+            "mode=trusted-signing" >> $env:GITHUB_OUTPUT
+            Write-Host "signing: Azure Trusted Signing"
+          } elseif ($configuredTrustedSigningSecretNames.Count -gt 0) {
+            $missingSecretNames = $trustedSigningSecretNames | Where-Object { $_ -notin $configuredTrustedSigningSecretNames }
+            Write-Host "::error::signing: Trusted Signing is partially configured; missing secret(s): $($missingSecretNames -join ', ')"
+            exit 1
+          } elseif ($configuredOvCertificateSecretNames.Count -eq $ovCertificateSecretNames.Count) {
+            [IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP "signing.pfx"), [Convert]::FromBase64String($env:SIGNING_CERT_PFX_BASE64))
+            "mode=ov-certificate" >> $env:GITHUB_OUTPUT
+            Write-Host "signing: OV certificate"
+          } elseif ($configuredOvCertificateSecretNames.Count -gt 0) {
+            $missingSecretNames = $ovCertificateSecretNames | Where-Object { $_ -notin $configuredOvCertificateSecretNames }
+            Write-Host "::error::signing: OV certificate is partially configured; missing secret(s): $($missingSecretNames -join ', ')"
+            exit 1
+          } else {
+            "mode=skipped" >> $env:GITHUB_OUTPUT
+            Write-Host "signing: SKIPPED"
+            Write-Host "::notice::No signing secrets are set (every fork PR, and this repo until the owner provisions them). Artifacts are unsigned."
             exit 0
-          }
-          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $signtool) { throw "signing: signtool.exe not found under Windows Kits" }
-          $pfxPath = Join-Path $env:RUNNER_TEMP "signing.pfx"
-          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_CERT_PFX_BASE64))
-          try {
-            & $signtool.FullName sign /f $pfxPath /p $env:SIGNING_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ../artifacts/publish/Clicky.exe
-            if ($LASTEXITCODE -ne 0) { throw "signing: signtool exited $LASTEXITCODE" }
-            Write-Host "signing: Clicky.exe signed"
-          } finally {
-            Remove-Item $pfxPath -Force
           }
 
       - name: Package
@@ -280,12 +327,33 @@ jobs:
         # makes vpk's architecture explicit (without it vpk warns and assumes x86).
         # vpk's Setup.exe installs per-user into %LOCALAPPDATA% with no admin rights by
         # default (no --machine / --msi), which is what ADR 001 requires.
+        #
+        # Signing (mode chosen by the Sign step): Trusted Signing passes vpk the metadata
+        # file; the OV path passes `signtool sign` parameters for the .pfx. Skipped mode
+        # passes neither, so the pack is unsigned.
+        env:
+          SIGNING_MODE: ${{ steps.sign.outputs.mode }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
           dotnet tool install -g vpk --version 1.2.161
           $packVersion = "0.1.0-ci.$env:GITHUB_RUN_NUMBER"
+          $pfxPath = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          $vpkSigningArguments = @(switch ($env:SIGNING_MODE) {
+            'trusted-signing' { '--azureTrustedSignFile', (Join-Path $env:RUNNER_TEMP "trusted-signing-metadata.json") }
+            'ov-certificate' { '--signParams', "/f `"$pfxPath`" /p `"$env:SIGNING_PASSWORD`" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256" }
+          })
           vpk pack --packId Clicky --packVersion $packVersion --packTitle Clicky --runtime win-x64 `
             --channel win-beta --mainExe Clicky.exe `
-            --packDir ../artifacts/publish --outputDir ../artifacts/package
+            --packDir ../artifacts/publish --outputDir ../artifacts/package @vpkSigningArguments
+          $vpkPackExitCode = $LASTEXITCODE
+          Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
+          if ($vpkPackExitCode -ne 0) {
+            Write-Host "::error::Package: vpk pack exited $vpkPackExitCode"
+            exit $vpkPackExitCode
+          }
 
       - name: assert-artifacts
         # Fails fast, before the Defender scan and the upload, unless vpk produced the
@@ -310,6 +378,53 @@ jobs:
             exit 1
           }
           Write-Host "assert-artifacts: Setup.exe $([Math]::Round($setupExeFiles[0].Length / 1MB, 1)) MB ($($setupExeFiles[0].Name)), $($fullNupkgFiles[0].Name), releases.win-beta.json OK"
+
+      - name: verify-signature
+        # T-015: runs whenever the Sign step signed (skipped builds are unsigned by
+        # design). Each of the three shipped binaries must have Status Valid, a
+        # timestamp countersignature and the signer Subject the owner configured.
+        # Setup.exe is read from the package output; Clicky.exe and Update.exe from
+        # inside the full .nupkg, because that is what Setup.exe installs and the update
+        # path applies. vpk stores Update.exe in the package under its legacy name
+        # Squirrel.exe, so either name is accepted.
+        if: steps.sign.outputs.mode != 'skipped'
+        env:
+          SIGNING_EXPECTED_SUBJECT: ${{ vars.SIGNING_EXPECTED_SUBJECT }}
+        run: |
+          if (-not $env:SIGNING_EXPECTED_SUBJECT) {
+            Write-Host "::error::verify-signature: repository variable SIGNING_EXPECTED_SUBJECT is not set"
+            exit 1
+          }
+          $packageDirectory = "../artifacts/package"
+          $extractedFullNupkgDirectory = Join-Path $env:RUNNER_TEMP "verify-signature-full-nupkg"
+          $fullNupkgPath = (Get-ChildItem (Join-Path $packageDirectory "*-full.nupkg") | Select-Object -First 1).FullName
+          # ZipFile, not Expand-Archive: Expand-Archive rejects a non-.zip extension.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($fullNupkgPath, $extractedFullNupkgDirectory, $true)
+
+          $filesByBinaryName = [ordered]@{
+            'Clicky.exe' = @(Get-ChildItem $extractedFullNupkgDirectory -Recurse -File -Include Clicky.exe)
+            'Update.exe' = @(Get-ChildItem $extractedFullNupkgDirectory -Recurse -File -Include Update.exe, Squirrel.exe)
+            'Setup.exe' = @(Get-ChildItem (Join-Path $packageDirectory "*-Setup.exe"))
+          }
+          $failed = $false
+          foreach ($binaryName in $filesByBinaryName.Keys) {
+            $binaryFiles = $filesByBinaryName[$binaryName]
+            if ($binaryFiles.Count -ne 1) {
+              Write-Host "::error::verify-signature: expected exactly one $binaryName, found $($binaryFiles.Count)"
+              $failed = $true
+              continue
+            }
+            $signature = Get-AuthenticodeSignature -LiteralPath $binaryFiles[0].FullName
+            $signerSubject = $signature.SignerCertificate.Subject
+            $binarySignatureProblems = @()
+            if ($signature.Status -ne 'Valid') { $binarySignatureProblems += "status is $($signature.Status) ($($signature.StatusMessage)), expected Valid" }
+            if ($null -eq $signature.TimeStamperCertificate) { $binarySignatureProblems += "has no timestamp (TimeStamperCertificate is null)" }
+            if ($signerSubject -ne $env:SIGNING_EXPECTED_SUBJECT) { $binarySignatureProblems += "signer subject is '$signerSubject', expected '$env:SIGNING_EXPECTED_SUBJECT'" }
+            $binarySignatureProblems | ForEach-Object { Write-Host "::error::verify-signature: $binaryName $_" }
+            if ($binarySignatureProblems.Count -gt 0) { $failed = $true } else { Write-Host "verify-signature: $binaryName Valid, timestamped by $($signature.TimeStamperCertificate.Subject), signed by $signerSubject" }
+          }
+          if ($failed) { exit 1 }
 
       - name: Defender scan of packaged output
         # MpCmdRun exit codes for `-Scan -ScanType 3 -DisableRemediation`:

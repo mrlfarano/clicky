@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "seam": "analytics-events",
+  "swiftAnchor": "leanring-buddy/ClickyAnalytics.swift:27-120",
+  "description": "Seam 8. One case per AN-01 event plus identify. input.swiftFunction names the ClickyAnalytics.swift function (identify: PostHogSDK.shared.identify at CompanionManager.swift:161-163, the case's own anchor) and input.arguments its Swift argument labels; the matching AnalyticsEvents method on a default catalogue must produce expected.name and expected.properties exactly (every key, no extras; {} when Swift passes no properties). For identify, expected.distinctId and expected.properties are the identify distinct id and person properties. character_count is Swift String.count, i.e. grapheme clusters, ported as StringInfo.LengthInTextElements (character-count-emoji). transcript-included and response-included pin AN-03: the full text is sent until the owner flips the catalogue's one content switch. Parity spec AN-01, AN-03.",
+  "cases": [
+    {
+      "id": "app-opened",
+      "branch": "app_opened",
+      "input": { "swiftFunction": "trackAppOpened", "arguments": { "appVersion": "1.4.2" } },
+      "expected": { "name": "app_opened", "properties": { "app_version": "1.4.2" } }
+    },
+    {
+      "id": "onboarding-started",
+      "branch": "onboarding_started",
+      "input": { "swiftFunction": "trackOnboardingStarted", "arguments": {} },
+      "expected": { "name": "onboarding_started", "properties": {} }
+    },
+    {
+      "id": "onboarding-replayed",
+      "branch": "onboarding_replayed",
+      "input": { "swiftFunction": "trackOnboardingReplayed", "arguments": {} },
+      "expected": { "name": "onboarding_replayed", "properties": {} }
+    },
+    {
+      "id": "onboarding-video-completed",
+      "branch": "onboarding_video_completed",
+      "input": { "swiftFunction": "trackOnboardingVideoCompleted", "arguments": {} },
+      "expected": { "name": "onboarding_video_completed", "properties": {} }
+    },
+    {
+      "id": "onboarding-demo-triggered",
+      "branch": "onboarding_demo_triggered",
+      "input": { "swiftFunction": "trackOnboardingDemoTriggered", "arguments": {} },
+      "expected": { "name": "onboarding_demo_triggered", "properties": {} }
+    },
+    {
+      "id": "all-permissions-granted",
+      "branch": "all_permissions_granted",
+      "input": { "swiftFunction": "trackAllPermissionsGranted", "arguments": {} },
+      "expected": { "name": "all_permissions_granted", "properties": {} }
+    },
+    {
+      "id": "permission-granted",
+      "branch": "permission_granted",
+      "input": { "swiftFunction": "trackPermissionGranted", "arguments": { "permission": "microphone" } },
+      "expected": { "name": "permission_granted", "properties": { "permission": "microphone" } }
+    },
+    {
+      "id": "push-to-talk-started",
+      "branch": "push_to_talk_started",
+      "input": { "swiftFunction": "trackPushToTalkStarted", "arguments": {} },
+      "expected": { "name": "push_to_talk_started", "properties": {} }
+    },
+    {
+      "id": "push-to-talk-released",
+      "branch": "push_to_talk_released",
+      "input": { "swiftFunction": "trackPushToTalkReleased", "arguments": {} },
+      "expected": { "name": "push_to_talk_released", "properties": {} }
+    },
+    {
+      "id": "transcript-included",
+      "branch": "user_message_sent",
+      "input": { "swiftFunction": "trackUserMessageSent", "arguments": { "transcript": "how do i split this window so the terminal sits next to my editor and both stay the same height?" } },
+      "expected": { "name": "user_message_sent", "properties": { "transcript": "how do i split this window so the terminal sits next to my editor and both stay the same height?", "character_count": 96 } }
+    },
+    {
+      "id": "response-included",
+      "branch": "ai_response_received",
+      "input": { "swiftFunction": "trackAIResponseReceived", "arguments": { "response": "drag the terminal tab to the right edge until the drop zone lights up, then let go." } },
+      "expected": { "name": "ai_response_received", "properties": { "response": "drag the terminal tab to the right edge until the drop zone lights up, then let go.", "character_count": 83 } }
+    },
+    {
+      "id": "character-count-emoji",
+      "branch": "character_count-grapheme-clusters",
+      "input": { "swiftFunction": "trackUserMessageSent", "arguments": { "transcript": "👍🏽ok" } },
+      "expected": { "name": "user_message_sent", "properties": { "transcript": "👍🏽ok", "character_count": 3 } }
+    },
+    {
+      "id": "element-pointed",
+      "branch": "element_pointed",
+      "input": { "swiftFunction": "trackElementPointed", "arguments": { "elementLabel": "save button" } },
+      "expected": { "name": "element_pointed", "properties": { "element_label": "save button" } }
+    },
+    {
+      "id": "element-pointed-nil-label",
+      "branch": "element_pointed-label-nil",
+      "input": { "swiftFunction": "trackElementPointed", "arguments": { "elementLabel": null } },
+      "expected": { "name": "element_pointed", "properties": { "element_label": "unknown" } }
+    },
+    {
+      "id": "response-error",
+      "branch": "response_error",
+      "input": { "swiftFunction": "trackResponseError", "arguments": { "error": "The request timed out." } },
+      "expected": { "name": "response_error", "properties": { "error": "The request timed out." } }
+    },
+    {
+      "id": "tts-error",
+      "branch": "tts_error",
+      "input": { "swiftFunction": "trackTTSError", "arguments": { "error": "TTS API error (402): payment required" } },
+      "expected": { "name": "tts_error", "properties": { "error": "TTS API error (402): payment required" } }
+    },
+    {
+      "id": "identify",
+      "branch": "identify",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:161-163",
+      "input": { "swiftFunction": "identify", "arguments": { "email": "learner@example.com" } },
+      "expected": { "distinctId": "learner@example.com", "properties": { "email": "learner@example.com" } }
+    }
+  ]
+}

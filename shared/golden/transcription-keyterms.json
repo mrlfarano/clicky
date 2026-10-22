@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "seam": "transcription-keyterms",
+  "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:652-684",
+  "description": "TranscriptionKeyterms.BuildTranscriptionKeyterms(input.contextualKeyterms) appends the contextual terms to the base terms, trims them, drops blanks and de-duplicates case-insensitively, keeping first-seen order and casing (BuddyDictationManager.swift:652-684). AssemblyAiWebsocketUrlBuilder.BuildWebsocketUrl(input.temporaryToken, keyterms) then builds the exact wss URL; keyterms_prompt is the compact JSON array, percent-encoded as Foundation's URLComponents does (AssemblyAIStreamingTranscriptionProvider.swift:437-477). baseKeyterms is BuddyDictationManager.swift:653-665 verbatim, legacy terms included. Parity spec STT-01, STT-07.",
+  "baseKeyterms": ["makesomething", "Learning Buddy", "Codex", "Claude", "Anthropic", "OpenAI", "SwiftUI", "Xcode", "Vercel", "Next.js", "localhost"],
+  "cases": [
+    {
+      "id": "base-only",
+      "branch": "no-contextual-keyterms",
+      "input": { "contextualKeyterms": [], "temporaryToken": "temporary-token-abc123" },
+      "expected": {
+        "keyterms": ["makesomething", "Learning Buddy", "Codex", "Claude", "Anthropic", "OpenAI", "SwiftUI", "Xcode", "Vercel", "Next.js", "localhost"],
+        "websocketUrl": "wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&encoding=pcm_s16le&format_turns=true&speech_model=u3-rt-pro&keyterms_prompt=%5B%22makesomething%22,%22Learning%20Buddy%22,%22Codex%22,%22Claude%22,%22Anthropic%22,%22OpenAI%22,%22SwiftUI%22,%22Xcode%22,%22Vercel%22,%22Next.js%22,%22localhost%22%5D&token=temporary-token-abc123"
+      }
+    },
+    {
+      "id": "contextual-dedupe-case-insensitive",
+      "branch": "duplicate-keyterm-skipped",
+      "input": { "contextualKeyterms": ["clicky", "CLAUDE", "  Clicky  ", "next.JS", "Windows", "windows"], "temporaryToken": "temporary-token-abc123" },
+      "expected": {
+        "keyterms": ["makesomething", "Learning Buddy", "Codex", "Claude", "Anthropic", "OpenAI", "SwiftUI", "Xcode", "Vercel", "Next.js", "localhost", "clicky", "Windows"],
+        "websocketUrl": "wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&encoding=pcm_s16le&format_turns=true&speech_model=u3-rt-pro&keyterms_prompt=%5B%22makesomething%22,%22Learning%20Buddy%22,%22Codex%22,%22Claude%22,%22Anthropic%22,%22OpenAI%22,%22SwiftUI%22,%22Xcode%22,%22Vercel%22,%22Next.js%22,%22localhost%22,%22clicky%22,%22Windows%22%5D&token=temporary-token-abc123"
+      }
+    },
+    {
+      "id": "blank-dropped",
+      "branch": "blank-keyterm-skipped",
+      "input": { "contextualKeyterms": ["", "   ", "\t\n", " Visual Studio "], "temporaryToken": "temporary-token-abc123" },
+      "expected": {
+        "keyterms": ["makesomething", "Learning Buddy", "Codex", "Claude", "Anthropic", "OpenAI", "SwiftUI", "Xcode", "Vercel", "Next.js", "localhost", "Visual Studio"],
+        "websocketUrl": "wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&encoding=pcm_s16le&format_turns=true&speech_model=u3-rt-pro&keyterms_prompt=%5B%22makesomething%22,%22Learning%20Buddy%22,%22Codex%22,%22Claude%22,%22Anthropic%22,%22OpenAI%22,%22SwiftUI%22,%22Xcode%22,%22Vercel%22,%22Next.js%22,%22localhost%22,%22Visual%20Studio%22%5D&token=temporary-token-abc123"
+      }
+    }
+  ]
+}

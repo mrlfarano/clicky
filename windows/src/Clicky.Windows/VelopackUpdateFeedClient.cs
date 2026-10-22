@@ -37,5 +37,16 @@ internal sealed class VelopackUpdateFeedClient : IUpdateFeedClient
         return true;
     }
 
-    public void ApplyStagedUpdateAndRestart() => updateManager.ApplyUpdatesAndRestart(stagedUpdateInfo?.TargetFullRelease);
+    public void ApplyStagedUpdate(bool restartIntoUpdate)
+    {
+        if (restartIntoUpdate)
+        {
+            updateManager.ApplyUpdatesAndRestart(stagedUpdateInfo?.TargetFullRelease);
+        }
+        else
+        {
+            // Silent: the debug trigger runs on headless CI, where an updater dialog would never be answered.
+            updateManager.WaitExitThenApplyUpdates(stagedUpdateInfo?.TargetFullRelease, silent: true, restart: false);
+        }
+    }
 }

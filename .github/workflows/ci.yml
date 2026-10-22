@@ -10,8 +10,10 @@
 #   macos-parity      golden-vector schema, worker build, parity-spec link lint
 #   windows-build     build, Core tests, replay e2e, publish, sign (secret-gated),
 #                     vpk pack, assert-artifacts, verify-signature, Defender scan,
-#                     installed-replay
+#                     installed-replay, update-n-to-n1
 #   linux-core-tests  Clicky.Core.Tests on Linux
+#   windows-release   win-v* tags only: vpk upload github of windows-build's package.
+#                     Skipped on every other run, so it is not a required check.
 #
 # BRANCH PROTECTION cannot be configured from the repo. The owner sets it in
 # Settings > Branches > main (or a ruleset targeting main):
@@ -28,6 +30,10 @@ name: CI
 
 on:
   push:
+    # Branch pushes as before, plus the win-v* tags that publish a Windows release
+    # (windows-release). Listing tags here limits tag runs to win-v*.
+    branches: ['**']
+    tags: ['win-v*']
   pull_request:
 
 concurrency:
@@ -200,6 +206,9 @@ jobs:
     name: windows-build
     runs-on: windows-latest
     timeout-minutes: 45
+    outputs:
+      # windows-release refuses to publish an unsigned package.
+      signing-mode: ${{ steps.sign.outputs.mode }}
     defaults:
       run:
         shell: pwsh
@@ -588,6 +597,107 @@ jobs:
           }
           Write-Host "installed-replay: silent install OK, installed --replay point-basic.sse exited 0, second package $secondPackageVersion applied, $($userDataStateAfterSecondApply.Count) user-data file(s) beside current\ byte-identical"
 
+      - name: update-n-to-n1
+        # T-036 / WS-10 part 2: the installed app updates ITSELF. installed-replay drives
+        # Update.exe by hand; here the installed Clicky.exe finds N+1 on a feed through
+        # ClickyUpdateService + Velopack's UpdateManager (--debug-update-now) and applies it.
+        #
+        # N is the Package step's release; N+1 repacks the same publish output with a higher
+        # version into a LOCAL directory feed that also holds N's release set (vpk then adds
+        # an N -> N+1 delta and lists both in releases.win-beta.json). Velopack reads a plain
+        # directory path as a feed (SimpleFileSource), so no server is needed. The feed lives
+        # in RUNNER_TEMP so ../artifacts/package keeps exactly the release set that ships.
+        #
+        # The install root is removed first: installed-replay left N+1 of its own there, and
+        # a fresh install of N must not depend on Setup.exe's downgrade behavior. The feed URL
+        # goes into the INSTALLED copy's appsettings.json, the file ClickySettings reads next
+        # to the exe. --debug-update-now exits once the release is handed to Velopack, and
+        # Update.exe applies it after the process is gone, so the step polls sq.version.
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $velopackRootDirectory = Join-Path $env:LOCALAPPDATA "Clicky"
+          $installedCurrentDirectory = Join-Path $velopackRootDirectory "current"
+          $installedClickyExecutablePath = Join-Path $installedCurrentDirectory "Clicky.exe"
+          $installedVersionManifestPath = Join-Path $installedCurrentDirectory "sq.version"
+          $userSettingsFilePath = Join-Path $velopackRootDirectory "settings.json"
+          function Write-UpdateDiagnostics {
+            # Clicky's own log and Velopack's updater log are where a failed update explains itself.
+            Get-ChildItem -LiteralPath $velopackRootDirectory -Recurse -File -Include clicky-*.log, *velopack*.log -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "--- $($_.FullName)"; Get-Content -LiteralPath $_.FullName -Tail 40 }
+          }
+
+          # 1) Fresh silent install of N (the Package step's Setup.exe).
+          if (Test-Path $velopackRootDirectory) { Remove-Item -LiteralPath $velopackRootDirectory -Recurse -Force }
+          $setupExecutablePath = @(Get-ChildItem "../artifacts/package/*-Setup.exe")[0].FullName
+          $installProcess = Start-Process -FilePath $setupExecutablePath -ArgumentList "--silent" -PassThru -Wait
+          if ($installProcess.ExitCode -ne 0 -or -not (Test-Path $installedClickyExecutablePath)) {
+            Write-Host "::error::update-n-to-n1: silent install of N exited $($installProcess.ExitCode) or did not create $installedClickyExecutablePath"
+            exit 1
+          }
+          $versionN = "0.1.0-ci.$env:GITHUB_RUN_NUMBER"
+          if ((Get-Content $installedVersionManifestPath -Raw) -notmatch [Regex]::Escape($versionN)) {
+            Write-Host "::error::update-n-to-n1: the fresh install does not report version N ($versionN)"
+            exit 1
+          }
+
+          # 2) Seed the user's settings.json beside current\ and hash it.
+          Set-Content -Path $userSettingsFilePath -Value '{"selectedClaudeModel":"claude-opus-4-6","hasCompletedOnboarding":true}'
+          $settingsHashBeforeUpdate = (Get-FileHash -LiteralPath $userSettingsFilePath -Algorithm SHA256).Hash
+
+          # 3) Local directory feed holding N and N+1.
+          $versionN1 = "$versionN.2"
+          $localFeedDirectory = Join-Path $env:RUNNER_TEMP "clicky-update-feed"
+          New-Item -ItemType Directory -Force $localFeedDirectory | Out-Null
+          Copy-Item -Path "../artifacts/package/*" -Destination $localFeedDirectory
+          vpk pack --packId Clicky --packVersion $versionN1 --packTitle Clicky --runtime win-x64 `
+            --channel win-beta --mainExe Clicky.exe `
+            --packDir ../artifacts/publish --outputDir $localFeedDirectory
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::update-n-to-n1: vpk pack of N+1 ($versionN1) into the local feed exited $LASTEXITCODE"
+            exit 1
+          }
+          $feedReleaseVersions = @((Get-Content (Join-Path $localFeedDirectory "releases.win-beta.json") -Raw | ConvertFrom-Json).Assets.Version)
+          if ($versionN -notin $feedReleaseVersions -or $versionN1 -notin $feedReleaseVersions) {
+            Write-Host "::error::update-n-to-n1: the local feed lists $($feedReleaseVersions -join ', '), expected both $versionN and $versionN1"
+            exit 1
+          }
+
+          # 4) Point the installed copy at the local feed.
+          $installedAppSettingsPath = Join-Path $installedCurrentDirectory "appsettings.json"
+          $installedAppSettings = Get-Content $installedAppSettingsPath -Raw | ConvertFrom-Json
+          $installedAppSettings.UpdateFeedUrl = $localFeedDirectory
+          $installedAppSettings | ConvertTo-Json -Depth 10 | Set-Content -Path $installedAppSettingsPath
+
+          # 5) The installed app checks, downloads and hands N+1 to Velopack, then exits 0.
+          $debugUpdateProcess = Start-Process -FilePath $installedClickyExecutablePath -ArgumentList "--debug-update-now" -PassThru -Wait
+          if ($debugUpdateProcess.ExitCode -ne 0) {
+            Write-UpdateDiagnostics
+            Write-Host "::error::update-n-to-n1: installed Clicky.exe --debug-update-now exited $($debugUpdateProcess.ExitCode)"
+            exit 1
+          }
+
+          # 6) The installed version becomes N+1 once Update.exe has applied it.
+          $applyDeadline = (Get-Date).AddMinutes(2)
+          # SilentlyContinue: current\ is briefly missing while Update.exe swaps it.
+          while (-not ((Get-Content $installedVersionManifestPath -Raw -ErrorAction SilentlyContinue) -match [Regex]::Escape($versionN1))) {
+            if ((Get-Date) -gt $applyDeadline) {
+              Write-UpdateDiagnostics
+              Write-Host "::error::update-n-to-n1: current\sq.version never reported N+1 ($versionN1) within 2 minutes of --debug-update-now"
+              exit 1
+            }
+            Start-Sleep -Seconds 2
+          }
+          Get-Process -Name Update -ErrorAction SilentlyContinue | Wait-Process -Timeout 60 -ErrorAction SilentlyContinue
+
+          # 7) settings.json must be byte-identical across the self-update.
+          $settingsHashAfterUpdate = (Get-FileHash -LiteralPath $userSettingsFilePath -Algorithm SHA256).Hash
+          if ($settingsHashAfterUpdate -ne $settingsHashBeforeUpdate) {
+            Write-Host "::error::update-n-to-n1: settings.json changed across the update (SHA256 $settingsHashBeforeUpdate -> $settingsHashAfterUpdate)"
+            exit 1
+          }
+          Write-Host "update-n-to-n1: installed $versionN updated itself to $versionN1 via --debug-update-now from $localFeedDirectory; settings.json SHA256 $settingsHashAfterUpdate unchanged"
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v5
@@ -600,6 +710,57 @@ jobs:
             artifacts/test-results/
             artifacts/package/
           if-no-files-found: warn
+
+  windows-release:
+    name: windows-release
+    # T-036 / WS-10: a win-v* tag runs pack -> sign -> upload. windows-build packs and signs
+    # (the Sign step picks the mode, the Package step's vpk pack signs, verify-signature checks
+    # it) and tests the result (installed-replay, update-n-to-n1); this job only uploads that
+    # exact package, so nothing is repacked between test and release. It is its own job so
+    # contents: write reaches the upload alone, never the build and test steps.
+    # The feed is GitHub Releases on this repo (VelopackUpdateFeedClient's GithubSource), on
+    # the win-beta channel as GitHub prereleases. Only Velopack's win-beta files are uploaded:
+    # the Mac Sparkle feed is built and pushed by the Mac release script on a Mac, never here.
+    # shortcut: the release keeps windows-build's 0.1.0-ci.<run> package version (monotonic,
+    # so the updater orders it right) rather than the tag's semver; derive it from the tag
+    # when WS-21 cuts real betas.
+    if: startsWith(github.ref, 'refs/tags/win-v')
+    needs: windows-build
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download windows-build package
+        uses: actions/download-artifact@v5
+        with:
+          name: windows-build-${{ github.run_attempt }}
+          path: artifacts
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: vpk upload github
+        env:
+          SIGNING_MODE: ${{ needs.windows-build.outputs.signing-mode }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ($env:SIGNING_MODE -notin @('trusted-signing', 'ov-certificate')) {
+            Write-Host "::error::windows-release: refusing to publish $env:GITHUB_REF_NAME unsigned (signing mode '$env:SIGNING_MODE'); configure the signing secrets"
+            exit 1
+          }
+          dotnet tool install -g vpk --version 1.2.161
+          vpk upload github --outputDir artifacts/package --channel win-beta `
+            --repoUrl "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY" --token $env:GITHUB_TOKEN `
+            --tag $env:GITHUB_REF_NAME --releaseName "Clicky for Windows $env:GITHUB_REF_NAME" --pre --publish
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::windows-release: vpk upload github exited $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
 
   linux-core-tests:
     name: linux-core-tests

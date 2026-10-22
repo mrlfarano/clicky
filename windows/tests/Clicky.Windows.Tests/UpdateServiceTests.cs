@@ -166,6 +166,30 @@ public sealed class UpdateServiceTests
         }
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DebugUpdateNowChecksOnceAndAppliesWithoutRestart(bool feedHasNewerRelease)
+    {
+        // --debug-update-now (T-036): one check right now, and an apply without relaunching only when it staged a release.
+        var fakeTimeProvider = new FakeTimeProvider();
+        var fakeUpdateFeedClient = new FakeUpdateFeedClient(fakeTimeProvider) { ReportsUpdateStaged = feedHasNewerRelease };
+        var updateService = new ClickyUpdateService(
+            new ClickyUpdateFeed(@"C:\clicky-update-feed", "win-beta"),
+            _ => fakeUpdateFeedClient,
+            new CompanionVoiceStateReporter(),
+            fakeTimeProvider,
+            _ => { });
+
+        bool updateHandedOver = await updateService.CheckAndApplyNowAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.Equal(feedHasNewerRelease, updateHandedOver);
+        Assert.Single(fakeUpdateFeedClient.UpdateRequestVirtualTimes);
+        Assert.Equal(feedHasNewerRelease ? 1 : 0, fakeUpdateFeedClient.ApplyCount);
+        Assert.Equal(feedHasNewerRelease ? (bool?)false : null, fakeUpdateFeedClient.LastApplyRestartedIntoUpdate);
+    }
+
     [Fact]
     public void UnknownChannelIsRejectedAtLoad()
     {
@@ -232,6 +256,12 @@ public sealed class UpdateServiceTests
             return Task.FromResult(ReportsUpdateStaged);
         }
 
-        public void ApplyStagedUpdateAndRestart() => Interlocked.Increment(ref applyCount);
+        public bool? LastApplyRestartedIntoUpdate { get; private set; }
+
+        public void ApplyStagedUpdate(bool restartIntoUpdate)
+        {
+            LastApplyRestartedIntoUpdate = restartIntoUpdate;
+            Interlocked.Increment(ref applyCount);
+        }
     }
 }

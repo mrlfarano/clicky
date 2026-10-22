@@ -10,7 +10,8 @@ internal sealed class CommandLineUsageException(string message) : Exception(mess
 /// (--replay) or a manifest mapping every Worker route (--replay-manifest, WS-04 part 1). The parity-harness
 /// flags --settings-override, --script and --debug-trigger-onboarding-demo (WS-04 part 2) shape that same
 /// replay: overridden user settings in the report, scripted input events on the virtual clock, and the
-/// onboarding demo interaction instead of the tracer prompt.
+/// onboarding demo interaction instead of the tracer prompt. --debug-update-now (WS-10) runs one update
+/// check against UpdateFeedUrl, applies what it staged and exits.
 /// </summary>
 internal sealed record ClickyCommandLineOptions(
     string? ReplayFixturePath,
@@ -25,13 +26,15 @@ internal sealed record ClickyCommandLineOptions(
     IReadOnlyList<SettingsOverridePair> SettingsOverrides,
     string? ScriptPath,
     bool DebugTriggerOnboardingDemo,
-    ClickyUserSettingsChange? UserSettingsChange)
+    ClickyUserSettingsChange? UserSettingsChange,
+    bool DebugUpdateNowRequested)
 {
     public const string UsageText =
         "usage: Clicky.exe [--replay <fixture.sse> | --replay-manifest <manifest.json>] [--event-delay-ms N] [--linger-ms N]\n" +
         "                  [--settings-override key=value,...] [--script <script.json>] [--debug-trigger-onboarding-demo]\n" +
         "                  [--record <fixture.sse>] [--report <report.json>] [--save-captures <directory>]\n" +
-        "                  [--set-setting <settingsFileKey>=<value>] [--debug-stall-hook-once] [--debug-crash]";
+        "                  [--set-setting <settingsFileKey>=<value>] [--debug-stall-hook-once] [--debug-crash]\n" +
+        "                  [--debug-update-now]";
 
     public bool IsReplay => ReplayFixturePath is not null || ReplayManifestPath is not null;
 
@@ -50,6 +53,7 @@ internal sealed record ClickyCommandLineOptions(
         string? scriptPath = null;
         bool debugTriggerOnboardingDemo = false;
         ClickyUserSettingsChange? userSettingsChange = null;
+        bool debugUpdateNowRequested = false;
 
         for (int argumentIndex = 0; argumentIndex < commandLineArguments.Count; argumentIndex++)
         {
@@ -73,6 +77,7 @@ internal sealed record ClickyCommandLineOptions(
                 case "--debug-stall-hook-once": stallFirstHookCallback = true; break;
                 case "--debug-crash": debugCrashRequested = true; break;
                 case "--set-setting": userSettingsChange = ClickyUserSettingsChange.Parse(NextValue()); break;
+                case "--debug-update-now": debugUpdateNowRequested = true; break;
                 default: throw new CommandLineUsageException($"Unknown argument '{argumentName}'.");
             }
         }
@@ -116,6 +121,11 @@ internal sealed record ClickyCommandLineOptions(
             // it into a replay or a crash-test run would make both halves' exit codes ambiguous.
             throw new CommandLineUsageException("--set-setting applies one user setting and exits; it cannot be combined with --replay, --replay-manifest, --record or --debug-crash.");
         }
+        if (debugUpdateNowRequested && (hasAnyReplayMode || recordFixturePath is not null || debugCrashRequested || userSettingsChange is not null))
+        {
+            // Like --set-setting, --debug-update-now is its own one-shot run: the apply ends the process.
+            throw new CommandLineUsageException("--debug-update-now runs one update check and exits; it cannot be combined with --replay, --replay-manifest, --record, --debug-crash or --set-setting.");
+        }
 
         return new ClickyCommandLineOptions(
             replayFixturePath,
@@ -130,7 +140,8 @@ internal sealed record ClickyCommandLineOptions(
             settingsOverrides ?? [],
             scriptPath,
             debugTriggerOnboardingDemo,
-            userSettingsChange);
+            userSettingsChange,
+            debugUpdateNowRequested);
     }
 
     private static int ParseNonNegativeMilliseconds(string argumentName, string argumentValue) =>

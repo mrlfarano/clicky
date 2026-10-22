@@ -3,7 +3,7 @@ using Xunit;
 namespace Clicky.Windows.Tests;
 
 /// <summary>
-/// Reads step blocks out of .github/workflows/ci.yml for the windows-build job. This is a
+/// Reads job and step blocks out of .github/workflows/ci.yml (the windows-build job by default). This is a
 /// purpose-built line reader for this file's layout (job keys at two spaces of indentation,
 /// step list items at six spaces), not a general YAML parser. The packaging tests use it to
 /// pin the workflow's shape, so reformatting ci.yml surfaces as a test failure rather than
@@ -11,18 +11,42 @@ namespace Clicky.Windows.Tests;
 /// </summary>
 internal static class CiWorkflowSource
 {
-    private const string WindowsBuildJobKeyLine = "  windows-build:";
+    private const string WindowsBuildJobName = "windows-build";
     private const string StepListItemPrefix = "      - ";
 
     /// <summary>Returns the full text (name line, comments, env and run block) of one windows-build step.</summary>
-    public static string WindowsBuildStep(string stepName)
+    public static string WindowsBuildStep(string stepName) => JobStep(WindowsBuildJobName, stepName);
+
+    /// <summary>Returns the full text of one step of the given job.</summary>
+    public static string JobStep(string jobName, string stepName)
     {
-        List<string> stepBlocks = ReadWindowsBuildStepBlocks();
+        List<string> stepBlocks = ReadStepBlocks(jobName);
 
         string? matchedStepBlock = stepBlocks.FirstOrDefault(stepBlock =>
             FirstLineOf(stepBlock) == $"{StepListItemPrefix}name: {stepName}");
-        Assert.True(matchedStepBlock is not null, $"The windows-build job in ci.yml has no step named '{stepName}'.");
+        Assert.True(matchedStepBlock is not null, $"The {jobName} job in ci.yml has no step named '{stepName}'.");
         return matchedStepBlock!;
+    }
+
+    /// <summary>Returns the job's header (if, needs, permissions, comments...) up to its step list.</summary>
+    public static string JobHeader(string jobName)
+    {
+        string[] workflowLines = ReadWorkflowLines();
+        int jobStartLineIndex = FindJobStartLineIndex(workflowLines, jobName);
+        int stepsLineIndex = Array.FindIndex(workflowLines, jobStartLineIndex, line => line == "    steps:");
+        Assert.True(stepsLineIndex > jobStartLineIndex, $"The {jobName} job in ci.yml has no steps list.");
+        return JoinLines(workflowLines, jobStartLineIndex, stepsLineIndex);
+    }
+
+    /// <summary>The top-level 'on:' block, which decides which pushes and tags start a run.</summary>
+    public static string TriggerBlock()
+    {
+        string[] workflowLines = ReadWorkflowLines();
+        int onLineIndex = Array.IndexOf(workflowLines, "on:");
+        Assert.True(onLineIndex >= 0, "ci.yml has no top-level 'on:' block.");
+        int nextTopLevelLineIndex = Array.FindIndex(workflowLines, onLineIndex + 1,
+            line => line.Length > 0 && !char.IsWhiteSpace(line[0]));
+        return JoinLines(workflowLines, onLineIndex, nextTopLevelLineIndex < 0 ? workflowLines.Length : nextTopLevelLineIndex);
     }
 
     /// <summary>
@@ -32,7 +56,7 @@ internal static class CiWorkflowSource
     /// </summary>
     public static int WindowsBuildStepIndex(string stepName)
     {
-        List<string> stepBlocks = ReadWindowsBuildStepBlocks();
+        List<string> stepBlocks = ReadStepBlocks(WindowsBuildJobName);
 
         int matchedStepBlockIndex = stepBlocks.FindIndex(stepBlock =>
             FirstLineOf(stepBlock) == $"{StepListItemPrefix}name: {stepName}");
@@ -40,18 +64,23 @@ internal static class CiWorkflowSource
         return matchedStepBlockIndex;
     }
 
-    private static List<string> ReadWindowsBuildStepBlocks()
+    private static string[] ReadWorkflowLines() => File.ReadAllLines(Path.Combine(
+        ClickyReplayProcess.RepositoryRootDirectory, ".github", "workflows", "ci.yml"));
+
+    private static int FindJobStartLineIndex(string[] workflowLines, string jobName)
     {
-        string[] workflowLines = File.ReadAllLines(Path.Combine(
-            ClickyReplayProcess.RepositoryRootDirectory, ".github", "workflows", "ci.yml"));
-
-        int windowsBuildJobStartLineIndex = Array.FindIndex(workflowLines, line => line == WindowsBuildJobKeyLine);
-        Assert.True(windowsBuildJobStartLineIndex >= 0, "ci.yml has no 'windows-build' job.");
-
-        return CollectWindowsBuildStepBlocks(workflowLines, windowsBuildJobStartLineIndex);
+        int jobStartLineIndex = Array.IndexOf(workflowLines, $"  {jobName}:");
+        Assert.True(jobStartLineIndex >= 0, $"ci.yml has no '{jobName}' job.");
+        return jobStartLineIndex;
     }
 
-    private static List<string> CollectWindowsBuildStepBlocks(string[] workflowLines, int jobStartLineIndex)
+    private static List<string> ReadStepBlocks(string jobName)
+    {
+        string[] workflowLines = ReadWorkflowLines();
+        return CollectStepBlocks(workflowLines, FindJobStartLineIndex(workflowLines, jobName));
+    }
+
+    private static List<string> CollectStepBlocks(string[] workflowLines, int jobStartLineIndex)
     {
         // A step block runs from its '      - ' list item to the next one, to the next job
         // key, or to the end of the file. Deeper-indented lines (step keys, block scalars,

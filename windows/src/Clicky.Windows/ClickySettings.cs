@@ -1,30 +1,45 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Clicky.Core;
 
 namespace Clicky.Windows;
 
-/// <summary>appsettings.json next to Clicky.exe (audit A7). WorkerBaseUrl ships empty: there is no hard-coded placeholder.</summary>
+/// <summary>
+/// Ship-time values from appsettings.json next to Clicky.exe (audit A7, plan WS-12): the Worker proxy
+/// URL (ships empty: no hard-coded placeholder), the update feed URL (empty = the updater stays off,
+/// WS-10), the PostHog host and project key (the public client key ClickyAnalytics.swift:16-22
+/// hard-codes), the Claude model list the picker offers, and the tracer prompt (removed once WS-07
+/// lands). WHICH model answers and the push-to-talk shortcut are user choices, so they live in the
+/// data-directory settings.json (<see cref="ClickyUserSettingsStore"/>), never in this file.
+/// </summary>
 internal sealed record ClickySettings(
     string? WorkerBaseUrl,
-    string ClaudeModel,
-    string TracerPromptText,
-    PushToTalkShortcutOption PushToTalkShortcut)
+    string? UpdateFeedUrl,
+    string? PostHogHost,
+    string? PostHogApiKey,
+    IReadOnlyList<string> ClaudeModels,
+    string TracerPromptText)
 {
-    public static ClickySettings LoadFromApplicationDirectory()
+    /// <summary>
+    /// A7: the version macOS reads from CFBundleShortVersionString comes from the assembly on Windows,
+    /// never from appsettings.json, so the shipped file can never disagree with the running build.
+    /// </summary>
+    public string ApplicationVersion { get; } = typeof(ClickySettings).Assembly.GetName().Version?.ToString() ?? "unknown";
+
+    public static ClickySettings LoadFromApplicationDirectory() =>
+        LoadFromFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"));
+
+    /// <summary>Reads the ship-time file from an explicit path, so tests pin the file that actually ships.</summary>
+    internal static ClickySettings LoadFromFile(string settingsFilePath)
     {
-        string settingsFilePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        var settingsJsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            Converters = { new JsonStringEnumConverter() },
-        };
+        var settingsJsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         ClickySettings settings = JsonSerializer.Deserialize<ClickySettings>(File.ReadAllText(settingsFilePath), settingsJsonOptions)
             ?? throw new InvalidDataException($"{settingsFilePath} is empty.");
 
-        if (string.IsNullOrWhiteSpace(settings.ClaudeModel) || string.IsNullOrWhiteSpace(settings.TracerPromptText))
+        if (settings.ClaudeModels is null || settings.ClaudeModels.Count == 0
+            || settings.ClaudeModels.Any(string.IsNullOrWhiteSpace)
+            || string.IsNullOrWhiteSpace(settings.TracerPromptText))
         {
-            throw new InvalidDataException($"{settingsFilePath} needs non-empty ClaudeModel and TracerPromptText.");
+            throw new InvalidDataException($"{settingsFilePath} needs a non-empty ClaudeModels list (no blank ids) and a non-empty TracerPromptText.");
         }
         return settings;
     }

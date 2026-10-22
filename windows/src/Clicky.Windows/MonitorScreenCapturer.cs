@@ -1,11 +1,13 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Runtime.Versioning;
 using Clicky.Core;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
 using Windows.Graphics.Imaging;
+using Windows.Security.Authorization.AppCapabilityAccess;
 using Windows.Storage.Streams;
 using WinRT;
 
@@ -21,14 +23,31 @@ internal sealed class MonitorScreenCapturer
     private const float JpegQuality = 0.8f; // CompanionScreenCaptureUtility.swift:99-100
     private static readonly TimeSpan FirstFrameTimeout = TimeSpan.FromSeconds(3);
 
-    private readonly IDirect3DDevice captureDevice = Direct3D11CaptureInterop.CreateDirect3DDevice();
+    // One D3D device for every capture of the process (task T-025): created on the first capture, not per capture.
+    private readonly Lazy<IDirect3DDevice> sharedCaptureDevice;
+    private Task<AppCapabilityAccessStatus>? borderlessAccessRequest;
+
+    public MonitorScreenCapturer()
+        : this(Direct3D11CaptureInterop.CreateDirect3DDevice)
+    {
+    }
+
+    /// <param name="createCaptureDevice">Called at most once; tests pass a fake to count device creations.</param>
+    public MonitorScreenCapturer(Func<IDirect3DDevice> createCaptureDevice)
+    {
+        sharedCaptureDevice = new Lazy<IDirect3DDevice>(createCaptureDevice);
+    }
+
+    /// <summary>The device every capture's frame pool is created on.</summary>
+    public IDirect3DDevice CaptureDevice => sharedCaptureDevice.Value;
 
     public async Task<SoftwareBitmap> CaptureFirstFrameAsync(DisplayMonitor monitor, CancellationToken cancellationToken)
     {
         GraphicsCaptureItem captureItem = Direct3D11CaptureInterop.CreateCaptureItemForMonitor((IntPtr)monitor.Handle);
         using Direct3D11CaptureFramePool framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-            captureDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 1, captureItem.Size);
+            CaptureDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 1, captureItem.Size);
         using GraphicsCaptureSession captureSession = framePool.CreateCaptureSession(captureItem);
+        await RemoveCaptureBorderWhereSupportedAsync(captureSession);
 
         var firstFrameSource = new TaskCompletionSource<Direct3D11CaptureFrame>(TaskCreationOptions.RunContinuationsAsynchronously);
         framePool.FrameArrived += (arrivedFramePool, _) =>
@@ -44,6 +63,42 @@ internal sealed class MonitorScreenCapturer
         using Direct3D11CaptureFrame firstFrame = await firstFrameSource.Task.WaitAsync(FirstFrameTimeout, cancellationToken);
         // Copying to a CPU bitmap ends our use of the GPU surface, so the session can be torn down right away.
         return await SoftwareBitmap.CreateCopyFromSurfaceAsync(firstFrame.Surface, BitmapAlphaMode.Ignore);
+    }
+
+    /// <summary>
+    /// On 20348+ asks once per process for borderless access and, when granted, turns the yellow capture border off
+    /// (audit D1). Older Windows 10 builds keep the border, an accepted limitation.
+    /// </summary>
+    private async Task RemoveCaptureBorderWhereSupportedAsync(GraphicsCaptureSession captureSession)
+    {
+        CaptureOptions captureOptions = WindowCaptureExclusion.CurrentCaptureOptions;
+        // The OS check repeats CaptureOptions.Decide's 20348 threshold so the platform analyzer sees the guard.
+        if (!captureOptions.RequestBorderlessAccess || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 20348))
+        {
+            return;
+        }
+        borderlessAccessRequest ??= RequestBorderlessAccessAsync();
+        if (await borderlessAccessRequest == AppCapabilityAccessStatus.Allowed)
+        {
+            captureSession.IsBorderRequired = captureOptions.IsBorderRequired;
+        }
+    }
+
+    [SupportedOSPlatform("windows10.0.20348")]
+    private static async Task<AppCapabilityAccessStatus> RequestBorderlessAccessAsync()
+    {
+        try
+        {
+            AppCapabilityAccessStatus borderlessAccessStatus = await GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless);
+            ClickyLog.Write($"capture: borderless access {borderlessAccessStatus}");
+            return borderlessAccessStatus;
+        }
+        catch (Exception borderlessAccessException)
+        {
+            // A bordered screenshot beats no screenshot: keep capturing with the border.
+            ClickyLog.Write($"capture: borderless access request failed, keeping the border: {borderlessAccessException.Message}");
+            return AppCapabilityAccessStatus.DeniedBySystem;
+        }
     }
 
     /// <summary>Downscales to the planned screenshot size (1280 on the long edge) and encodes JPEG at quality 0.8 (audit D5).</summary>

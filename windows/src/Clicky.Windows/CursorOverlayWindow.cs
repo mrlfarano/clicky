@@ -332,14 +332,7 @@ internal sealed class CursorOverlayWindow : Window
         int currentExtendedStyles = PInvoke.GetWindowLong(windowHandle, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
         PInvoke.SetWindowLong(windowHandle, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, currentExtendedStyles | (int)OverlayExtendedStyles);
 
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041))
-        {
-            IsExcludedFromCapture = PInvoke.SetWindowDisplayAffinity(windowHandle, WINDOW_DISPLAY_AFFINITY.WDA_EXCLUDEFROMCAPTURE);
-            if (!IsExcludedFromCapture)
-            {
-                ClickyLog.Write("overlay: WDA_EXCLUDEFROMCAPTURE failed; hiding the overlay during capture instead");
-            }
-        }
+        IsExcludedFromCapture = WindowCaptureExclusion.TryExcludeFromCapture(windowHandle, "overlay");
 
         // The placement loop (T-004): every rendered frame re-checks the pending placement and calls
         // SetWindowPos only when it actually changed. WPF raises Rendering only when something renders, so

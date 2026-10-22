@@ -377,9 +377,9 @@
         "Given the vector, when linux-core-tests runs, then it passes there."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/SettingsDefaultsGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-12 part 1. hasScreenContentPermission is dropped (audit D4).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/3",
+      "dev_notes": "Merged after CI green on PR #3 (squash 818f952); GoldenVectors.cs conflict with T-006 resolved locally (both LoadVectorDocument and LoadAllCases kept; 78/78 Core tests post-merge). CompanionSettings + merger: missing key -> default; wrong-typed value -> that key default WITHOUT corrupt flag; unparseable/non-object -> all defaults + UserSettingsFileWasCorrupt (ONB-04); unknown keys preserved in UnrecognizedUserSettingsValues for T-018 rewrite. Shell ClickySettings.cs untouched (appsettings layer, T-018 wires). Vector swiftAnchor=CompanionManager.swift:111-150; 6 known keys pinned by VectorCoversEveryKnownSettingsFileKey.",
       "qa_result": null
     },
     {

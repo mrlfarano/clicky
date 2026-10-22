@@ -697,9 +697,9 @@
         "Given shutdown, when it runs, then ShutdownTests.OrderedShutdown asserts hook removed, dictation cancelled, overlay hidden and in-flight work cancelled, in that order."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/ShutdownTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-18 part 1 (A1, A2, A10). Per-user named mutex. QA-matrix: PNL-05 Task Manager shows no process and no ghost tray icon.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/28",
+      "dev_notes": "WinExe lifecycle: named per-user mutex (2nd instance exits 0, no hook - one hook-installed across logs), --debug-quit-after-ms ordered shutdown (hook->dictation->overlay->in-flight, order asserted) + shutdown complete. Log hardened for multi-instance sharing; replay stdout preserved. Gaps (shortcut comments): no tray Quit yet; update loop not cancelled on shutdown; dictation-cancel state-only. CI risk (real hook on runner) resolved green on merge.",
       "qa_result": null
     },
     {
@@ -965,9 +965,9 @@
         "Given the vector, when linux-core-tests runs, then it passes there."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/FlightPathGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-23 part 1 (seam 9). Expected values authored from the Swift lines, not from the SUT.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/26",
+      "dev_notes": "FlightPath.Sample porting OverlayWindow.swift:495-568 exactly (eased pos+rotation, linear scale, DIP units); duration f(distance) clamped 0.6-1.4s; vector hand-derived. T-042 sequencer converts px->DIP and owns the 60fps timer.",
       "qa_result": null
     },
     {
@@ -1014,9 +1014,9 @@
         "Given transcript-included and response-included, when run, then the suite asserts full text is sent, and AnalyticsEventsGoldenVectorTests.OneSwitchStripsContent asserts one flag removes both properties."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/AnalyticsEventsGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-24 part 1 (seam 8). Pre-release decisions pending with the product owner: transcript content in PostHog (AN-03) and Worker client auth. If the owner decides, re-sign AN-03.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/27",
+      "dev_notes": "AnalyticsEvents catalogue verbatim from ClickyAnalytics.swift + identify; character_count via StringInfo (grapheme); content flags default parity (owner decision deferred), one instance-level switch strips both. T-044 wires the sink; string-literal calls bypass catalogue until then.",
       "qa_result": null
     },
     {

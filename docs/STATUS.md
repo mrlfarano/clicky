@@ -7,7 +7,7 @@ Last updated: 2026-10-22 — PM
 
 ## Current phase
 
-**Phase 6 — Development (starting: wave 1 = root tasks T-001, T-003, T-006, T-013, T-016, T-017, T-019; T-008/T-009 blocked on macOS).** Phases 0–5 complete, all gates green. ADR 001 approved as written 2026-10-22.
+**Phase 6 — Development, wave 1 in flight.** Done so far (each: worktree → implement → tests → PR → CI green → squash-merge → tasks.json recorded): **T-006** (PR [#1](https://github.com/mrlfarano/clicky/pull/1)), **T-019** (PR [#2](https://github.com/mrlfarano/clicky/pull/2)), **T-017** (PR [#3](https://github.com/mrlfarano/clicky/pull/3), GoldenVectors.cs conflict with T-006 resolved locally, 78/78 Core tests post-merge). In flight (4 parallel dev agents in isolated worktrees): T-001 replay-manifest, T-003 overlay placement, T-013 Velopack CI, T-016 crash reporting. Blocked on macOS: T-008, T-009. Phases 0–5 all green.
 
 ## Phase / gate ledger
 
@@ -43,4 +43,4 @@ Last updated: 2026-10-22 — PM
 
 ## Next action
 
-Dispatch phase 4 (implementation plan, risk-first, mapped to audit rows + parity scenarios) → phase 5 (task breakdown into `tasks/tasks.json`, every task ≥1 automatable acceptance criterion) → phase 6 development waves. Phase 7 blind QA will need interactive-VM access (acceptance items 3–11) — owner should provision or accept a manual-QA session.
+Wave 1 remainder (T-001, T-003, T-013, T-016) running in dev agents — on completion: PM pushes each branch, opens PR to `feature/windows-build` (protected: required checks macos-parity/linux-core-tests/windows-build), merges on green, records in tasks.json. Then wave 2 per `depends_on` (next up: T-002 overlay window redesign, T-004/T-005 hook hardening, T-010/T-011/T-012 packaging-crash-update chain, T-014+ pipeline tasks). Known sequencing note: branches made before a merge may conflict; resolve locally like T-017's GoldenVectors.cs (both changes kept, tests re-run). Phase 7 blind QA needs interactive-VM access (ADR acceptance items 3–11) — owner should provision or accept a manual-QA session.

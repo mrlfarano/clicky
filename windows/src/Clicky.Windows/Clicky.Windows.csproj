@@ -17,6 +17,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.183" PrivateAssets="all" />
+    <!-- Velopack install/update hooks (ADR 001 "Packaging": per-user Setup.exe, no MSIX).
+         Keep this version in lockstep with the vpk tool pinned in .github/workflows/ci.yml;
+         PackagingWorkflowTests.PackUsesWinBetaChannelAndPinnedVpk fails the build if they drift. -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>

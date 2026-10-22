@@ -61,9 +61,9 @@
         "Given a secondary monitor at negative origin and 150% DPI, when placed, then OverlayPlacementTests.NegativeOriginMixedDpi asserts the exact hand-computed window rect."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/OverlayPlacementTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-01 part 1. Decision PNT-04: tip is the hotspot; the Mac's 8/12 pt offset moves to the bubble (OverlayWindow.swift:463-474). Expected values hand-computed, never from the SUT.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/4",
+      "dev_notes": "Merged after CI green on PR #4 (91/91 Core tests, 0 warnings). OverlayPlacement.Place pure fn: hotspot==target always (never clamped), bubble flips right->left/below->above only where flipping helps, 20-DIP inset clamp on every edge (anchored OverlayWindow.swift:463-474; 8/12-DIP bubble gap per PNT-04 decision; 18-DIP glyph, zero hotspot offset matching shell triangle). 9 new placeOverlay cases in screen-mapping.json with per-case swiftAnchors (22 total); CursorFallbackCasesRemainInTheVector guard pins PNT-02 ids. Geometry choices not fixed by spec documented in code + vector notes.",
       "qa_result": null
     },
     {
@@ -297,9 +297,9 @@
         "Given the Defender scan step, when the run completes, then it covers Setup.exe and the .nupkg and is clean."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-08 part 1. Pin Velopack (MIT; re-verify licence). Version <SemVer>-ci.<run>. A6: unpackaged Win32, no MSIX, no camera capability. The Velopack root under LOCALAPPDATA/Clicky doubles as the settings dir (settings.json, logs and crashes sit beside current). PackagingWorkflowTests live in windows/tests/Clicky.Windows.Tests/PackagingWorkflowTests.cs.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/5",
+      "dev_notes": "Merged after CI green on PR #5 - the windows-build job on that PR ran the NEW workflow, so vpk pack + assert-artifacts + Defender-over-package verified on a real windows-latest runner. Velopack 1.2.161 NuGet (lockstep with vpk pin); VelopackApp.Build().Run() literal first statement of Main; CI Package step: vpk pack --packId Clicky --packVersion 0.1.0-ci.N --packTitle Clicky --runtime win-x64 --channel win-beta --mainExe Clicky.exe. 4 PackagingWorkflowTests + CiWorkflowSource reader (87/87 local incl. real vpk dry-run on this machine). Deviations: installer filename is Clicky-win-beta-Setup.exe (asserted as *-Setup.exe); --runtime win-x64 added (bootstrapper arch); 2 extra tests pin criteria 2+4. vpk 1.2.161 left installed as global dotnet tool locally (useful for T-014).",
       "qa_result": null
     },
     {
@@ -356,9 +356,9 @@
         "Given more than 5 crash files, when a new crash is written, then CrashReportingTests.KeepsNewestFive asserts 5 remain, and the log rolls at 5 x 1 MB."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/CrashReportingTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-11. Decision: no Sentry (would send exception messages embedding Worker response bodies; new privacy surface). Native crashes go to WER only (accepted). 'Report a problem' button lands in T-033. Reads CLICKY_DATA_DIR; reuse the data-dir resolver from T-017/T-018 if already merged.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/6",
+      "dev_notes": "Merged after CI green on PR #6 (squash f8d91a1). Program.cs conflict with T-013 resolved: VelopackApp.Build().Run() stays literal first statement, crash handlers immediately after (Velopack may exit process for install hooks before our code runs). MiniDumpWriteDump(MiniDumpNormal) from AppDomain+Dispatcher handlers, write-once, UTC dmp+txt under crashes dir; rolling 1MB/5-file log; CLICKY_DATA_DIR override; --debug-crash real unhandled exception on dedicated thread. Privacy fix: TracerInteractionRunner logged full spoken text, now N chars. 104/104 post-resolution. Deviations: hand DllImport (CsWin32 PInvoke005 for AnyCPU); --debug-crash uses inert replay endpoint; dump verified MDMP magic locally. Two dev bugs caught by own tests (crash files cwd vs crashes dir; roll-check on missing file).",
       "qa_result": null
     },
     {

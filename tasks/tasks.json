@@ -27,7 +27,9 @@
       "title": "Add --settings-override, --script, --debug-trigger-onboarding-demo and new report fields with stub sinks",
       "priority": 1,
       "effort": "M",
-      "depends_on": ["T-001"],
+      "depends_on": [
+        "T-001"
+      ],
       "parity_scenarios": [],
       "acceptance_criteria": [
         "Given --settings-override selectedClaudeModel=claude-opus-4-6, when replay runs, then ReplayHarnessFlagsTests.SettingsOverrideAppliesToRequest asserts the override is visible in the report's effective settings.",
@@ -47,7 +49,11 @@
       "priority": 1,
       "effort": "M",
       "depends_on": [],
-      "parity_scenarios": ["PNT-02", "PNT-03", "PNT-04"],
+      "parity_scenarios": [
+        "PNT-02",
+        "PNT-03",
+        "PNT-04"
+      ],
       "acceptance_criteria": [
         "Given screen0-falls-back, screen3-of-2-falls-back and missing-screen-uses-cursor, when screen-mapping.json runs, then ScreenMappingGoldenVectorTests asserts the cursor's monitor is chosen and stays green beside the new placement code.",
         "Given a target near each of the four work-area edges, when OverlayPlacement.Place runs, then OverlayPlacementTests.BubbleFlipsAtEachEdge asserts the bubble flips to stay 20 DIP inside rcWork.",
@@ -65,8 +71,15 @@
       "title": "Replace fixed overlay window with content-sized moving window positioned via SetWindowPos",
       "priority": 1,
       "effort": "L",
-      "depends_on": ["T-003"],
-      "parity_scenarios": ["PNT-04", "PNT-05", "CLA-04", "CLA-05"],
+      "depends_on": [
+        "T-003"
+      ],
+      "parity_scenarios": [
+        "PNT-04",
+        "PNT-05",
+        "CLA-04",
+        "CLA-05"
+      ],
       "acceptance_criteria": [
         "Given point-quarter-screen1.sse and -screen2.sse, when replayed, then ReplayEndToEndTests.HotspotPxEqualsTargetPx asserts report point.hotspotPx == point.targetPx for both.",
         "Given a target on monitor K, when pointing starts, then ReplayEndToEndTests.MonitorDeviceMatchesTarget asserts point.monitorDevice equals K's device name.",
@@ -85,8 +98,12 @@
       "title": "Spike: move overlay and panel to the current virtual desktop on foreground change",
       "priority": 1,
       "effort": "M",
-      "depends_on": ["T-004"],
-      "parity_scenarios": ["PNT-05"],
+      "depends_on": [
+        "T-004"
+      ],
+      "parity_scenarios": [
+        "PNT-05"
+      ],
       "acceptance_criteria": [
         "Given a fake virtual-desktop service reporting the overlay off-desktop, when EVENT_SYSTEM_FOREGROUND fires, then VirtualDesktopFollowTests.MovesOverlayWhenOffDesktop asserts MoveWindowToDesktop is called with the foreground window's desktop id.",
         "Given the overlay already on the current desktop, when foreground fires, then VirtualDesktopFollowTests.NoMoveWhenAlreadyCurrent asserts no move call.",
@@ -104,7 +121,10 @@
       "priority": 1,
       "effort": "S",
       "depends_on": [],
-      "parity_scenarios": ["PTT-04", "PTT-05"],
+      "parity_scenarios": [
+        "PTT-04",
+        "PTT-05"
+      ],
       "acceptance_criteria": [
         "Given shift-ctrl-space-press-release, when the vector runs, then PushToTalkGoldenVectorTests asserts pressed on Space down and released on Space up.",
         "Given shift-ctrl-right-shift-presses, when run, then PushToTalkGoldenVectorTests asserts right Shift counts for the Shift options.",
@@ -112,9 +132,9 @@
         "Given the full file, when run, then PushToTalkGoldenVectorTests.EveryOptionAndBranchCovered asserts all four options x branch ids appear and the old 'shortcut:' comment is gone from PushToTalkDetector.cs."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/PushToTalkGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-03 part 1. Decision PTT-04: either Shift counts; macOS .shift is side-agnostic and Shift has no AltGr hazard. Cases use neutral Ctrl/Alt/Shift/Fn + keyCode form; XCTest (T-008) consumes them.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/1",
+      "dev_notes": "Implemented in worktree, merged as squash 394ba58 after CI green on PR #1. 11 new push-to-talk golden vectors (16->27 cases) + EveryOptionAndBranchCovered guard test; 67/67 Core tests, 0 warnings. Deviations: (1) old placeholder comment lived in LowLevelKeyboardEventTranslator.cs:86 not PushToTalkDetector.cs - removed there, test checks both files. (2) No behavioral change needed: translator already folded L/R Shift; this task settles and pins the decision (Ctrl/Alt stay left-specific per PTT-05/ADR AltGr protection). (3) Extra cases beyond the three named in AC added to satisfy the per-option branch-coverage criterion.",
       "qa_result": null
     },
     {
@@ -122,8 +142,15 @@
       "title": "Harden keyboard hook: reinstall on resume/unlock, hot-swap shortcut, never log key codes",
       "priority": 1,
       "effort": "M",
-      "depends_on": ["T-006"],
-      "parity_scenarios": ["PTT-01", "PTT-06", "PTT-07", "PTT-08"],
+      "depends_on": [
+        "T-006"
+      ],
+      "parity_scenarios": [
+        "PTT-01",
+        "PTT-06",
+        "PTT-07",
+        "PTT-08"
+      ],
       "acceptance_criteria": [
         "Given a PBT_APMRESUMEAUTOMATIC or WTS_SESSION_UNLOCK message, when delivered to the message window, then HookRecoveryTests.ReinstallsAndResetsOnResumeAndUnlock asserts hook reinstall plus translator and detector reset (fake hook installer).",
         "Given a shortcut change posted to the translator channel, when the next key event arrives, then HookRecoveryTests.ShortcutHotSwaps asserts the new option is used.",
@@ -142,7 +169,11 @@
       "priority": 1,
       "effort": "S",
       "depends_on": [],
-      "parity_scenarios": ["PNT-01", "PTT-01", "PTT-04"],
+      "parity_scenarios": [
+        "PNT-01",
+        "PTT-01",
+        "PTT-04"
+      ],
       "acceptance_criteria": [
         "Given point-tag.json, when GoldenVectorTests runs on macOS, then testPointTagVectors asserts parsePointingCoordinates matches every case and pins label-looks-like-screen from Swift output.",
         "Given push-to-talk.json, when run, then testPushToTalkVectors asserts shortcutTransition matches every case, skipping cases tagged platform=windows.",
@@ -159,8 +190,13 @@
       "title": "Move Mac prompts to bundle resources and replace literals with a Bundle loader",
       "priority": 1,
       "effort": "S",
-      "depends_on": ["T-008"],
-      "parity_scenarios": ["CLA-02", "ONB-02"],
+      "depends_on": [
+        "T-008"
+      ],
+      "parity_scenarios": [
+        "CLA-02",
+        "ONB-02"
+      ],
       "acceptance_criteria": [
         "Given the built app bundle, when the XCTest loads both prompts, then testPromptsLoadFromBundle asserts bytes equal shared/prompts/*.txt.",
         "Given CompanionManager.swift, when CompanionVoiceResponsePromptTests runs, then it asserts no prompt literal remains and the loader names match the files."
@@ -176,8 +212,15 @@
       "title": "Add CompanionSession reducer in Core: re-press, tap, finalize-ignore, history, analytics asymmetry",
       "priority": 1,
       "effort": "M",
-      "depends_on": ["T-002"],
-      "parity_scenarios": ["PTT-02", "PTT-03", "CLA-07", "AN-02"],
+      "depends_on": [
+        "T-002"
+      ],
+      "parity_scenarios": [
+        "PTT-02",
+        "PTT-03",
+        "CLA-07",
+        "AN-02"
+      ],
       "acceptance_criteria": [
         "Given repress-during-response-cancels, when the session-reducer vector runs, then SessionReducerGoldenVectorTests asserts the response is cancelled, no history entry and no ai_response_received.",
         "Given repress-during-finalize-ignored and ignored-press-still-emits-release, when run, then the same suite asserts the press is ignored and push_to_talk_released still emits.",
@@ -196,8 +239,14 @@
       "title": "Extend reducer with transient-hide timing, persistent/transient start and panel-status",
       "priority": 1,
       "effort": "M",
-      "depends_on": ["T-010"],
-      "parity_scenarios": ["TTS-02", "ONB-03", "PNL-06"],
+      "depends_on": [
+        "T-010"
+      ],
+      "parity_scenarios": [
+        "TTS-02",
+        "ONB-03",
+        "PNL-06"
+      ],
       "acceptance_criteria": [
         "Given transient-hide-after-tts-plus-1s, transient-hide-waits-for-pointing and transient-hide-cancelled-by-press, when run on the virtual clock, then SessionReducerGoldenVectorTests asserts hide fires 1 s after both end and a press cancels it.",
         "Given persistent-shows-on-start and transient-hidden-on-start, when run, then the suite asserts overlay commands match isClickyCursorEnabled.",
@@ -215,8 +264,13 @@
       "title": "Add CompanionCoordinator shell replacing TracerInteractionRunner orchestration",
       "priority": 1,
       "effort": "M",
-      "depends_on": ["T-011"],
-      "parity_scenarios": ["PTT-02", "CLA-07"],
+      "depends_on": [
+        "T-011"
+      ],
+      "parity_scenarios": [
+        "PTT-02",
+        "CLA-07"
+      ],
       "acceptance_criteria": [
         "Given point-basic.sse --event-delay-ms 200 and a scripted second press at 300 ms, when replayed, then CoordinatorReplayTests.RepressCancelsResponse asserts spokenText is empty and analyticsEvents order is correct.",
         "Given the source of TracerInteractionRunner.cs, when scanned by CoordinatorReplayTests.RunnerMakesNoStateTransitions, then it contains no voiceState assignments (all via the reducer).",
@@ -253,7 +307,9 @@
       "title": "Installed-copy smoke test: silent install and replay, user data outside current survives",
       "priority": 2,
       "effort": "S",
-      "depends_on": ["T-013"],
+      "depends_on": [
+        "T-013"
+      ],
       "parity_scenarios": [],
       "acceptance_criteria": [
         "Given Setup.exe from the build, when silently installed on windows-latest, then CI step 'installed-replay' runs the installed Clicky.exe --replay point-basic.sse and asserts exit 0.",
@@ -270,7 +326,10 @@
       "title": "Add Authenticode signing step gated on secrets (Trusted Signing primary, HSM OV fallback)",
       "priority": 2,
       "effort": "S",
-      "depends_on": ["T-013", "T-014"],
+      "depends_on": [
+        "T-013",
+        "T-014"
+      ],
       "parity_scenarios": [],
       "acceptance_criteria": [
         "Given secrets present, when the sign step runs, then CI step 'verify-signature' asserts Get-AuthenticodeSignature is Valid with a timestamp and the expected subject on Clicky.exe, Update.exe and Setup.exe.",
@@ -308,7 +367,10 @@
       "priority": 2,
       "effort": "S",
       "depends_on": [],
-      "parity_scenarios": ["ONB-04", "CLA-08"],
+      "parity_scenarios": [
+        "ONB-04",
+        "CLA-08"
+      ],
       "acceptance_criteria": [
         "Given missing-key, corrupt-file and unknown-key cases, when settings-defaults.json runs, then SettingsDefaultsGoldenVectorTests asserts defaults (claude-sonnet-4-6, cursor true, onboarding false, email false) and unknown-key handling.",
         "Given the key set, when the vector is read, then the suite asserts selectedClaudeModel, isClickyCursorEnabled, hasCompletedOnboarding, hasSubmittedEmail, pushToTalkShortcut and analyticsDistinctId are covered.",
@@ -325,8 +387,14 @@
       "title": "Persist settings atomically in LOCALAPPDATA with appsettings.json ship-time values",
       "priority": 2,
       "effort": "S",
-      "depends_on": ["T-017"],
-      "parity_scenarios": ["ONB-04", "CLA-08", "PNL-03"],
+      "depends_on": [
+        "T-017"
+      ],
+      "parity_scenarios": [
+        "ONB-04",
+        "CLA-08",
+        "PNL-03"
+      ],
       "acceptance_criteria": [
         "Given a corrupt settings.json, when the app starts and one setting changes, then SettingsPersistenceTests.CorruptFileBecomesValidAfterOneChange asserts the file parses with defaults plus the change.",
         "Given CLICKY_DATA_DIR set, when settings are written, then SettingsPersistenceTests.DataDirOverrideHonoured asserts the file is under that dir.",
@@ -345,7 +413,9 @@
       "priority": 2,
       "effort": "S",
       "depends_on": [],
-      "parity_scenarios": ["STT-02"],
+      "parity_scenarios": [
+        "STT-02"
+      ],
       "acceptance_criteria": [
         "Given a 48 kHz stereo float sine, when resampled, then PcmConversionTests.ResamplesToExpected16kFrameCount asserts the exact frame count.",
         "Given a known buffer, when RMS is computed on the float buffer, then PcmConversionTests.RmsMatchesKnownValue asserts the value within 1e-6.",
@@ -362,8 +432,13 @@
       "title": "Add WASAPI mic capture, default-device change handling and mic permission detection",
       "priority": 2,
       "effort": "M",
-      "depends_on": ["T-019"],
-      "parity_scenarios": ["STT-02", "PNL-04"],
+      "depends_on": [
+        "T-019"
+      ],
+      "parity_scenarios": [
+        "STT-02",
+        "PNL-04"
+      ],
       "acceptance_criteria": [
         "Given a fake audio source (runner has no device), when replay captures 5 s, then MicCaptureReplayTests.FakeSourceYields160000Bytes asserts the frame sink received 160000 B +/- 1%.",
         "Given a default-device-change notification raised on the fake enumerator, when handled, then MicCaptureReplayTests.ReopensOnDeviceChange asserts capture is reopened.",
@@ -381,8 +456,16 @@
       "title": "Add Core AssemblyAI URL, keyterms and turn assembly with vectors",
       "priority": 3,
       "effort": "M",
-      "depends_on": ["T-002", "T-012", "T-020"],
-      "parity_scenarios": ["STT-01", "STT-03", "STT-07"],
+      "depends_on": [
+        "T-002",
+        "T-012",
+        "T-020"
+      ],
+      "parity_scenarios": [
+        "STT-01",
+        "STT-03",
+        "STT-07"
+      ],
       "acceptance_criteria": [
         "Given transcription-keyterms.json cases base-only, contextual-dedupe-case-insensitive and blank-dropped, when run, then TranscriptionKeytermsGoldenVectorTests asserts the 11 base terms verbatim and the exact wss URL query.",
         "Given assemblyai-turns.json with mixed turn_order, end_of_turn and turn_is_formatted, when run, then AssemblyAiTurnsGoldenVectorTests asserts ascending join, formatted-not-overwritten, empty-not-stored and missing-order fallback.",
@@ -400,8 +483,15 @@
       "title": "Add Core transcript finalize machine on TimeProvider",
       "priority": 3,
       "effort": "M",
-      "depends_on": ["T-021"],
-      "parity_scenarios": ["STT-04", "STT-05", "STT-06", "STT-08"],
+      "depends_on": [
+        "T-021"
+      ],
+      "parity_scenarios": [
+        "STT-04",
+        "STT-05",
+        "STT-06",
+        "STT-08"
+      ],
       "acceptance_criteria": [
         "Given transcript-finalize.json cases grace-1400ms, session-fallback-2800ms, default-fallback-2400ms and first-wins, when run on the virtual clock, then TranscriptFinalizeGoldenVectorTests asserts delivery at 1.4 s, 2.8 s and 2.4 s with first-wins.",
         "Given end-of-turn-before-grace and termination-delivers, when run, then the suite asserts immediate delivery once and a Terminate command.",
@@ -418,8 +508,16 @@
       "title": "Add AssemblyAI websocket shell with shared invoker, fake transport replay and WS recording",
       "priority": 3,
       "effort": "L",
-      "depends_on": ["T-022"],
-      "parity_scenarios": ["STT-01", "STT-02", "STT-04", "STT-05", "STT-08"],
+      "depends_on": [
+        "T-022"
+      ],
+      "parity_scenarios": [
+        "STT-01",
+        "STT-02",
+        "STT-04",
+        "STT-05",
+        "STT-08"
+      ],
       "acceptance_criteria": [
         "Given assemblyai-session-basic.jsonl, when replayed, then SttReplayTests.SessionBasicSendsUrlAndBinaryFrames asserts the first out frame URL and binary PCM frames.",
         "Given assemblyai-final-on-keyup.jsonl, when replayed, then SttReplayTests.FinalOnKeyupSubmitsTranscript asserts the transcript reaches /chat and displayTimeline holds no transcript text while listening.",
@@ -438,10 +536,15 @@
       "title": "Move screen capture to transcript submit and add capture-plan vector",
       "priority": 3,
       "effort": "M",
-      "depends_on": ["T-004", "T-012"],
-      "parity_scenarios": ["CLA-01"],
+      "depends_on": [
+        "T-004",
+        "T-012"
+      ],
+      "parity_scenarios": [
+        "CLA-01"
+      ],
       "acceptance_criteria": [
-        "Given capture-plan.json (ordering, ' — ' labels, 1512x982 to 1280x831), when run, then CapturePlanGoldenVectorTests asserts cursor monitor first, exact labels with the image-dimension suffix and a truncated short edge.",
+        "Given capture-plan.json (ordering, ' \u2014 ' labels, 1512x982 to 1280x831), when run, then CapturePlanGoldenVectorTests asserts cursor monitor first, exact labels with the image-dimension suffix and a truncated short edge.",
         "Given a replay, when a transcript is submitted, then ReplayEndToEndTests.CaptureHappensAtSubmit asserts requestBody image sizes and labels, and that no capture occurred at key press.",
         "Given the vector, when linux-core-tests runs, then it passes there."
       ],
@@ -456,8 +559,12 @@
       "title": "Harden capture: borderless on 20348+, panel exclusion, shared D3D device",
       "priority": 3,
       "effort": "M",
-      "depends_on": ["T-024"],
-      "parity_scenarios": ["CLA-01"],
+      "depends_on": [
+        "T-024"
+      ],
+      "parity_scenarios": [
+        "CLA-01"
+      ],
       "acceptance_criteria": [
         "Given build numbers 19041 and 20348, when CaptureOptions.Decide runs, then CaptureOptionsTests.BorderlessOnlyOn20348Plus asserts RequestAccessAsync(Borderless) and IsBorderRequired=false only on 20348+.",
         "Given the panel HWND, when capture starts, then CaptureOptionsTests.PanelGetsSameExclusionAsOverlay asserts the same exclude-or-hide path (19041+ exclude, 1903 hide).",
@@ -474,8 +581,17 @@
       "title": "Complete Claude request builder: history turns and PNG/JPEG sniffing with vector",
       "priority": 3,
       "effort": "M",
-      "depends_on": ["T-002", "T-012", "T-017", "T-018"],
-      "parity_scenarios": ["CLA-02", "CLA-03", "PNT-01"],
+      "depends_on": [
+        "T-002",
+        "T-012",
+        "T-017",
+        "T-018"
+      ],
+      "parity_scenarios": [
+        "CLA-02",
+        "CLA-03",
+        "PNT-01"
+      ],
       "acceptance_criteria": [
         "Given claude-request.json (image bytes stubbed), when run, then ClaudeRequestGoldenVectorTests asserts alternating plain-string history, images only in the last user turn, [image,text(label)] per monitor then text(T), max_tokens 1024 and stream true.",
         "Given bytes starting 89 50 4E 47, when the media type is sniffed, then ClaudeRequestGoldenVectorTests asserts image/png, otherwise image/jpeg.",
@@ -492,8 +608,13 @@
       "title": "Wire model from settings and add TLS warm-up, timeouts, retry and non-2xx handling",
       "priority": 3,
       "effort": "M",
-      "depends_on": ["T-026"],
-      "parity_scenarios": ["CLA-06", "CLA-08"],
+      "depends_on": [
+        "T-026"
+      ],
+      "parity_scenarios": [
+        "CLA-06",
+        "CLA-08"
+      ],
       "acceptance_criteria": [
         "Given --settings-override selectedClaudeModel=claude-opus-4-6, when replayed, then ClaudeClientReplayTests.OpusOverrideSetsModel asserts requestBody.model.",
         "Given the model changes mid-request, when the request completes, then ClaudeClientReplayTests.InFlightKeepsModel asserts the in-flight request used the original model.",
@@ -512,8 +633,14 @@
       "title": "Add Core TTS request body and error mapping with tts fixtures",
       "priority": 3,
       "effort": "S",
-      "depends_on": ["T-002", "T-012"],
-      "parity_scenarios": ["TTS-01", "TTS-03"],
+      "depends_on": [
+        "T-002",
+        "T-012"
+      ],
+      "parity_scenarios": [
+        "TTS-01",
+        "TTS-03"
+      ],
       "acceptance_criteria": [
         "Given spokenText, when the body is built, then TtsRequestTests.BodyMatchesElevenLabsContract asserts text, model_id eleven_flash_v2_5, voice_settings 0.5/0.75 and Accept audio/mpeg.",
         "Given blank spokenText, when TTS is requested, then TtsRequestTests.BlankMakesNoCall asserts no request.",
@@ -530,8 +657,15 @@
       "title": "Add MP3 playback via WASAPI, system-voice fallback and press-to-stop",
       "priority": 3,
       "effort": "M",
-      "depends_on": ["T-028"],
-      "parity_scenarios": ["TTS-01", "TTS-03", "TTS-04", "PTT-02"],
+      "depends_on": [
+        "T-028"
+      ],
+      "parity_scenarios": [
+        "TTS-01",
+        "TTS-03",
+        "TTS-04",
+        "PTT-02"
+      ],
       "acceptance_criteria": [
         "Given point-basic.sse and tts-ok.json (sink stubbed), when replayed, then TtsReplayTests.OkPlaysAfterFullDownload asserts ttsRequests[0] and voiceStateTimeline processing -> responding -> idle.",
         "Given tts-http-402.json, when replayed, then TtsReplayTests.Http402SpeaksFallback asserts fallbackUtterances equals the exact string and analyticsEvents contains tts_error.",
@@ -549,8 +683,14 @@
       "title": "Switch to WinExe with single-instance mutex and ordered shutdown",
       "priority": 4,
       "effort": "M",
-      "depends_on": ["T-012", "T-016", "T-018"],
-      "parity_scenarios": ["PNL-05"],
+      "depends_on": [
+        "T-012",
+        "T-016",
+        "T-018"
+      ],
+      "parity_scenarios": [
+        "PNL-05"
+      ],
       "acceptance_criteria": [
         "Given --debug-quit-after-ms, when run, then ShutdownTests.QuitExitsZeroAndLogsShutdownComplete asserts exit 0 and the log line 'shutdown complete'.",
         "Given a second instance launched while one runs, when both run, then ShutdownTests.SecondInstanceInstallsNoSecondHook asserts exactly one 'hook installed' in the logs.",
@@ -567,8 +707,14 @@
       "title": "Add tray icon, themed icons, panel anchoring, hide rules and auto-open",
       "priority": 4,
       "effort": "M",
-      "depends_on": ["T-030"],
-      "parity_scenarios": ["PNL-01", "PNL-02", "PNL-07"],
+      "depends_on": [
+        "T-030"
+      ],
+      "parity_scenarios": [
+        "PNL-01",
+        "PNL-02",
+        "PNL-07"
+      ],
       "acceptance_criteria": [
         "Given taskbar edges bottom, left, top and right and an icon rect, when PanelAnchor.Compute runs, then PanelAnchorTests asserts the exact panel rect for each edge.",
         "Given the panel open, when Deactivated, push-to-talk or close fires, then PanelHideRulesTests asserts it hides with log 'panel hidden reason=deactivated|ptt|close', except deactivated while the mic is denied.",
@@ -586,8 +732,16 @@
       "title": "Port panel header, model picker and microphone-only permissions to XAML",
       "priority": 4,
       "effort": "M",
-      "depends_on": ["T-012", "T-020", "T-031"],
-      "parity_scenarios": ["PNL-03", "PNL-04", "PNL-06"],
+      "depends_on": [
+        "T-012",
+        "T-020",
+        "T-031"
+      ],
+      "parity_scenarios": [
+        "PNL-03",
+        "PNL-04",
+        "PNL-06"
+      ],
       "acceptance_criteria": [
         "Given the view-model for each onboarded x mic x voiceState combination, when status is read, then PanelViewModelTests.HeaderStatusMatchesReducerVector asserts Setup/Ready/Active/Listening/Processing/Responding.",
         "Given mic not granted, when the permissions list is read, then PanelViewModelTests.OnlyMicrophoneRow asserts exactly one row and the Grant command targets ms-settings:privacy-microphone.",
@@ -604,8 +758,14 @@
       "title": "Port remaining panel controls, DS tokens, icons, shortcut picker and accessibility",
       "priority": 4,
       "effort": "M",
-      "depends_on": ["T-032"],
-      "parity_scenarios": ["PNL-03", "PNL-04", "PNL-06"],
+      "depends_on": [
+        "T-032"
+      ],
+      "parity_scenarios": [
+        "PNL-03",
+        "PNL-04",
+        "PNL-06"
+      ],
       "acceptance_criteria": [
         "Given the panel XAML tree loaded in an STA test, when walked, then PanelAccessibilityTests.EveryControlHasAutomationName asserts a non-empty AutomationProperties.Name on every interactive control.",
         "Given the same tree, when walked, then PanelAccessibilityTests.EveryButtonHasHandCursor asserts Cursor=Hand and 0-delay tooltips.",
@@ -623,8 +783,14 @@
       "title": "Add per-user install hooks: Run key, Start-menu shortcut and first-launch panel",
       "priority": 4,
       "effort": "S",
-      "depends_on": ["T-014", "T-030", "T-031"],
-      "parity_scenarios": ["PNL-07"],
+      "depends_on": [
+        "T-014",
+        "T-030",
+        "T-031"
+      ],
+      "parity_scenarios": [
+        "PNL-07"
+      ],
       "acceptance_criteria": [
         "Given a silent install on windows-latest without elevation, when it completes, then CI step 'install-hooks' asserts HKCU Run/Clicky points at the stable exe path and the Start-menu shortcut exists.",
         "Given a silent uninstall, when it completes, then the same step asserts the Run value and shortcut are removed.",
@@ -641,7 +807,11 @@
       "title": "Add update service gated on idle with UpdateFeedUrl config",
       "priority": 2,
       "effort": "M",
-      "depends_on": ["T-014", "T-015", "T-018"],
+      "depends_on": [
+        "T-014",
+        "T-015",
+        "T-018"
+      ],
       "parity_scenarios": [],
       "acceptance_criteria": [
         "Given UpdateFeedUrl empty, when the app runs a full cycle, then UpdateServiceTests.EmptyFeedMakesNoRequest asserts zero update requests.",
@@ -660,7 +830,10 @@
       "title": "Add CI update test N to N+1 and win-v tag release workflow",
       "priority": 2,
       "effort": "M",
-      "depends_on": ["T-035", "T-015"],
+      "depends_on": [
+        "T-035",
+        "T-015"
+      ],
       "parity_scenarios": [],
       "acceptance_criteria": [
         "Given builds N and N+1 published to a local directory feed, when N is installed and --debug-update-now runs, then CI step 'update-n-to-n1' asserts the installed version is N+1.",
@@ -678,7 +851,14 @@
       "title": "Add signed beta release gate: unsigned output refused, SmartScreen note",
       "priority": 4,
       "effort": "S",
-      "depends_on": ["T-015", "T-036", "T-034", "T-023", "T-027", "T-029"],
+      "depends_on": [
+        "T-015",
+        "T-036",
+        "T-034",
+        "T-023",
+        "T-027",
+        "T-029"
+      ],
       "parity_scenarios": [],
       "acceptance_criteria": [
         "Given a win-v<semver>-beta.N tag build on a fork without secrets, when the workflow runs, then CI job 'release-gate' fails before the upload step.",
@@ -696,8 +876,17 @@
       "title": "Spike onboarding video host and add ff.mp3 fade and 40 s demo trigger",
       "priority": 4,
       "effort": "M",
-      "depends_on": ["T-012", "T-018", "T-025", "T-029", "T-033"],
-      "parity_scenarios": ["ONB-01", "ONB-05"],
+      "depends_on": [
+        "T-012",
+        "T-018",
+        "T-025",
+        "T-029",
+        "T-033"
+      ],
+      "parity_scenarios": [
+        "ONB-01",
+        "ONB-05"
+      ],
       "acceptance_criteria": [
         "Given a virtual clock, when music starts at volume 0.3, then OnboardingTimingTests.MusicFadesOver3sAfter90s asserts volume 0.3 until 90 s, then a fade to 0 by 93 s.",
         "Given the video host abstraction with a fake host, when playback passes 40 s, then OnboardingTimingTests.DemoFiresAt40sPlusMinus1s asserts the demo trigger fires once in [39 s, 41 s].",
@@ -715,8 +904,13 @@
       "title": "Implement first-run onboarding flow and replay-onboarding command",
       "priority": 4,
       "effort": "M",
-      "depends_on": ["T-038"],
-      "parity_scenarios": ["ONB-01", "ONB-05"],
+      "depends_on": [
+        "T-038"
+      ],
+      "parity_scenarios": [
+        "ONB-01",
+        "ONB-05"
+      ],
       "acceptance_criteria": [
         "Given an email, when submitted, then OnboardingFlowTests.EmailPostsFormSparkAndIdentifies asserts a FormSpark POST with the email, an identify event and hasSubmittedEmail=true, and that a blank value is rejected.",
         "Given Start clicked, when handled, then OnboardingFlowTests.StartPersistsAndFiresEvents asserts hasCompletedOnboarding=true, onboarding_started and the panel dismissed.",
@@ -734,8 +928,12 @@
       "title": "Add onboarding-demo prompt, SSE fixture and replay with --debug-trigger-onboarding-demo",
       "priority": 4,
       "effort": "S",
-      "depends_on": ["T-038"],
-      "parity_scenarios": ["ONB-02"],
+      "depends_on": [
+        "T-038"
+      ],
+      "parity_scenarios": [
+        "ONB-02"
+      ],
       "acceptance_criteria": [
         "Given onboarding-demo.sse and --debug-trigger-onboarding-demo, when replayed, then OnboardingDemoReplayTests.DemoSendsOneImageAndPointsAtCursorScreen asserts requestBody has 1 image and point.screenIndex == 0.",
         "Given the demo reply has no coordinate, when replayed, then OnboardingDemoReplayTests.NoCoordinateDoesNothing asserts point is null.",
@@ -753,8 +951,14 @@
       "title": "Add Core FlightPath bezier sampling with golden vector",
       "priority": 5,
       "effort": "S",
-      "depends_on": ["T-004", "T-012", "T-020"],
-      "parity_scenarios": ["PNT-06"],
+      "depends_on": [
+        "T-004",
+        "T-012",
+        "T-020"
+      ],
+      "parity_scenarios": [
+        "PNT-06"
+      ],
       "acceptance_criteria": [
         "Given flight-path.json authored from OverlayWindow.swift:495-568, when run, then FlightPathGoldenVectorTests asserts Sample(t,start,end) position, rotation and scale at fixed t values.",
         "Given short and long distances, when the duration is computed, then the suite asserts it is clamped to 0.6-1.4 s.",
@@ -771,8 +975,13 @@
       "title": "Add pointing sequence and overlay animations: fly, bubble, hold, return, spinner, waveform, fade",
       "priority": 5,
       "effort": "M",
-      "depends_on": ["T-041"],
-      "parity_scenarios": ["PNT-06", "TTS-02"],
+      "depends_on": [
+        "T-041"
+      ],
+      "parity_scenarios": [
+        "PNT-06",
+        "TTS-02"
+      ],
       "acceptance_criteria": [
         "Given the pointing sequencer on a virtual clock, when pointing starts, then PointingSequenceTests.FlyBubbleHoldReturn asserts fly 0.6-1.4 s, bubble, 3 s hold, return, then target cleared.",
         "Given a mouse move of more than 100 pt (converted to px at the monitor's DPI) during the return, when it happens, then PointingSequenceTests.MoveOver100ptCancelsReturn asserts the return is cancelled, including at 150% DPI.",
@@ -790,11 +999,18 @@
       "title": "Add Core AnalyticsEvents catalogue with golden vector",
       "priority": 5,
       "effort": "S",
-      "depends_on": ["T-002", "T-012", "T-018"],
-      "parity_scenarios": ["AN-01", "AN-03"],
+      "depends_on": [
+        "T-002",
+        "T-012",
+        "T-018"
+      ],
+      "parity_scenarios": [
+        "AN-01",
+        "AN-03"
+      ],
       "acceptance_criteria": [
         "Given analytics-events.json with a case per event, when run, then AnalyticsEventsGoldenVectorTests asserts exact names and property keys for every AN-01 event plus identify.",
-        "Given character-count-emoji ('👍🏽ok'), when counted, then the suite asserts 3 via StringInfo.LengthInTextElements.",
+        "Given character-count-emoji ('\ud83d\udc4d\ud83c\udffdok'), when counted, then the suite asserts 3 via StringInfo.LengthInTextElements.",
         "Given transcript-included and response-included, when run, then the suite asserts full text is sent, and AnalyticsEventsGoldenVectorTests.OneSwitchStripsContent asserts one flag removes both properties."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/AnalyticsEventsGoldenVectorTests.cs",
@@ -808,8 +1024,13 @@
       "title": "Add fire-and-forget PostHog sink and full-exchange analytics replay",
       "priority": 5,
       "effort": "S",
-      "depends_on": ["T-043"],
-      "parity_scenarios": ["AN-01", "AN-02"],
+      "depends_on": [
+        "T-043"
+      ],
+      "parity_scenarios": [
+        "AN-01",
+        "AN-02"
+      ],
       "acceptance_criteria": [
         "Given a full-exchange replay, when run, then AnalyticsReplayTests.FullExchangeEventOrder asserts analyticsEvents equals the AN-01 order exactly and no request goes to posthog.com.",
         "Given the real sink with a failing handler, when events are sent, then AnalyticsSinkTests.FailureIsDroppedAndNeverBlocks asserts the caller returns immediately and nothing throws.",

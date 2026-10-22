@@ -15,6 +15,7 @@ namespace Clicky.Windows;
 /// </summary>
 internal sealed class TracerInteractionRunner(
     ClickySettings settings,
+    string selectedClaudeModel,
     ClickyCommandLineOptions options,
     string systemPrompt,
     HttpClient workerHttpClient,
@@ -56,7 +57,9 @@ internal sealed class TracerInteractionRunner(
             await CaptureLabeledScreenshotsAsync(monitors, report, cancellationToken);
 
         JsonObject requestBody = ClaudeRequestBuilder.BuildStreamingMessagesBody(
-            settings.ClaudeModel,
+            // The model is the user's choice from the data-directory settings.json (ONB-04/CLA-08),
+            // loaded at startup; appsettings.json ships only the model list the picker offers.
+            selectedClaudeModel,
             systemPrompt,
             capturedScreenshots.Select(capturedScreenshot => capturedScreenshot.LabeledScreenshot).ToList(),
             settings.TracerPromptText);

@@ -75,37 +75,49 @@ internal static class ClickyReplayProcess
 
     private static async Task<ClickyStartupFailureRun> StartClickyAndWaitForExitAsync(string[] clickyArguments, string invocationDescription)
     {
-        var clickyStartInfo = new ProcessStartInfo(ClickyExecutablePath)
+        // A throwaway CLICKY_DATA_DIR keeps replay runs off the user's real %LOCALAPPDATA%\Clicky — both
+        // the log files they write and, since WS-12, the settings.json they load: a developer's own
+        // selectedClaudeModel must never change a replay run's request model.
+        string dataDirectoryPath = ClickyProcessLauncher.CreateTempDataDirectory();
+        try
         {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        foreach (string clickyArgument in clickyArguments)
-        {
-            clickyStartInfo.ArgumentList.Add(clickyArgument);
-        }
+            var clickyStartInfo = new ProcessStartInfo(ClickyExecutablePath)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            clickyStartInfo.Environment["CLICKY_DATA_DIR"] = dataDirectoryPath;
+            foreach (string clickyArgument in clickyArguments)
+            {
+                clickyStartInfo.ArgumentList.Add(clickyArgument);
+            }
 
-        CancellationToken testCancellationToken = TestContext.Current.CancellationToken;
-        using Process clickyProcess = Process.Start(clickyStartInfo)!;
-        Task<string> standardOutputText = clickyProcess.StandardOutput.ReadToEndAsync(testCancellationToken);
-        Task<string> standardErrorText = clickyProcess.StandardError.ReadToEndAsync(testCancellationToken);
-        using (var replayTimeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(testCancellationToken))
-        {
-            replayTimeoutCancellation.CancelAfter(ReplayTimeout);
-            try
+            CancellationToken testCancellationToken = TestContext.Current.CancellationToken;
+            using Process clickyProcess = Process.Start(clickyStartInfo)!;
+            Task<string> standardOutputText = clickyProcess.StandardOutput.ReadToEndAsync(testCancellationToken);
+            Task<string> standardErrorText = clickyProcess.StandardError.ReadToEndAsync(testCancellationToken);
+            using (var replayTimeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(testCancellationToken))
             {
-                await clickyProcess.WaitForExitAsync(replayTimeoutCancellation.Token);
+                replayTimeoutCancellation.CancelAfter(ReplayTimeout);
+                try
+                {
+                    await clickyProcess.WaitForExitAsync(replayTimeoutCancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    clickyProcess.Kill(entireProcessTree: true);
+                    Assert.Fail($"Clicky.exe {invocationDescription} did not exit within {ReplayTimeout.TotalSeconds} s");
+                }
             }
-            catch (OperationCanceledException)
-            {
-                clickyProcess.Kill(entireProcessTree: true);
-                Assert.Fail($"Clicky.exe {invocationDescription} did not exit within {ReplayTimeout.TotalSeconds} s");
-            }
+            string processOutput = await standardOutputText + await standardErrorText;
+            return new ClickyStartupFailureRun(clickyProcess.ExitCode, processOutput);
         }
-        string processOutput = await standardOutputText + await standardErrorText;
-        return new ClickyStartupFailureRun(clickyProcess.ExitCode, processOutput);
+        finally
+        {
+            Directory.Delete(dataDirectoryPath, recursive: true);
+        }
     }
 
     private static string ReadAssemblyMetadata(string metadataKey) => typeof(ClickyReplayProcess).Assembly

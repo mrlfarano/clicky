@@ -19,8 +19,11 @@ internal interface IUpdateFeedClient
     /// <summary>Asks the feed for a newer release and downloads it in the background; true once one is staged.</summary>
     Task<bool> CheckForUpdateAndDownloadAsync(CancellationToken cancellationToken);
 
-    /// <summary>Applies the staged release and restarts into it; the process exits.</summary>
-    void ApplyStagedUpdateAndRestart();
+    /// <summary>
+    /// Hands the staged release to Velopack's updater, which applies it once this process exits. With
+    /// <paramref name="restartIntoUpdate"/> the updater relaunches the app and this call exits the process.
+    /// </summary>
+    void ApplyStagedUpdate(bool restartIntoUpdate);
 }
 
 /// <summary>
@@ -94,7 +97,7 @@ internal sealed class ClickyUpdateService
     /// The "Restart to update" action: when a release is staged, waits until the voice state is idle (a
     /// restart mid-answer would cut the user off), then applies it. Does nothing when nothing is staged.
     /// </summary>
-    public async Task ApplyStagedUpdateWhenIdleAsync(CancellationToken cancellationToken)
+    public async Task ApplyStagedUpdateWhenIdleAsync(CancellationToken cancellationToken, bool restartIntoUpdate = true)
     {
         if (!IsUpdateStaged || updateFeedClient is null)
         {
@@ -120,7 +123,36 @@ internal sealed class ClickyUpdateService
         {
             companionVoiceStateProvider.VoiceStateChanged -= CompleteWhenCompanionIsIdle;
         }
-        writeLogLine("update: companion is idle; applying the staged release and restarting");
-        updateFeedClient.ApplyStagedUpdateAndRestart();
+        writeLogLine(restartIntoUpdate
+            ? "update: companion is idle; applying the staged release and restarting"
+            : "update: companion is idle; the staged release applies when this process exits");
+        updateFeedClient.ApplyStagedUpdate(restartIntoUpdate);
+    }
+
+    /// <summary>
+    /// The --debug-update-now trigger (WS-10's CI N -> N+1 test): one check right now instead of waiting for
+    /// the 6 h loop, then the same idle-gated apply, without restarting. The debug run installs no keyboard
+    /// hook and starts no interaction, so the voice state is idle and the gate opens at once; keeping the
+    /// gate means CI exercises the apply path users ride. A relaunch would start live mode on the runner, so
+    /// the caller exits instead and Velopack applies the release behind it. True once the apply is handed
+    /// over; a check failure propagates so the run fails loudly.
+    /// </summary>
+    public async Task<bool> CheckAndApplyNowAsync(CancellationToken cancellationToken)
+    {
+        if (updateFeed is null)
+        {
+            writeLogLine("update: UpdateFeedUrl is empty; --debug-update-now has no feed to check");
+            return false;
+        }
+        writeLogLine($"update: --debug-update-now checking {updateFeed.FeedUrl} on channel {updateFeed.Channel}");
+        updateFeedClient ??= createUpdateFeedClient(updateFeed);
+        IsUpdateStaged = await updateFeedClient.CheckForUpdateAndDownloadAsync(cancellationToken);
+        if (!IsUpdateStaged)
+        {
+            writeLogLine("update: --debug-update-now found no newer release");
+            return false;
+        }
+        await ApplyStagedUpdateWhenIdleAsync(cancellationToken, restartIntoUpdate: false);
+        return true;
     }
 }

@@ -218,6 +218,9 @@ internal static class Program
         var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(
             effectiveUserSettings.PushToTalkShortcut, options.StallFirstHookCallback, timeProvider);
         CancellationTokenSource? currentInteractionCancellation = null;
+        // shortcut: a tracer interaction reports Processing for its whole run; once the session reducer drives
+        // live mode (WS-14+) it reports its real voice states here instead.
+        var companionVoiceStateReporter = new CompanionVoiceStateReporter();
         // The monitor itself logs every transition ("ptt pressed" / "ptt released", T-007): the privacy rule
         // that log lines carry transitions and state but never vk or scan codes lives next to the key events.
         shortcutMonitor.ShortcutTransitioned += shortcutTransition => application.Dispatcher.InvokeAsync(async () =>
@@ -231,6 +234,7 @@ internal static class Program
             currentInteractionCancellation?.Cancel();
             var interactionCancellation = new CancellationTokenSource();
             currentInteractionCancellation = interactionCancellation;
+            companionVoiceStateReporter.ReportVoiceState(CompanionVoiceState.Processing);
             try
             {
                 await interactionRunner.RunAsync(interactionCancellation.Token);
@@ -239,8 +243,27 @@ internal static class Program
             {
                 ClickyLog.Write("interaction cancelled by a newer press");
             }
+            finally
+            {
+                // A cancelled interaction must not report idle over the newer one that replaced it.
+                if (currentInteractionCancellation == interactionCancellation)
+                {
+                    companionVoiceStateReporter.ReportVoiceState(CompanionVoiceState.Idle);
+                }
+            }
         });
         shortcutMonitor.Start();
+
+        // Live only, like the hook: replay, --set-setting and --debug-crash have all returned above. With
+        // UpdateFeedUrl empty (the shipped default) this logs once and makes no update request (WS-10).
+        var updateService = new ClickyUpdateService(
+            settings.TryGetUpdateFeed(),
+            updateFeed => new VelopackUpdateFeedClient(updateFeed),
+            companionVoiceStateReporter,
+            timeProvider,
+            ClickyLog.Write);
+        // Task.Run keeps feed checks off the WPF dispatcher; the loop catches and logs its own failures.
+        _ = Task.Run(() => updateService.RunUpdateChecksAsync(CancellationToken.None));
 
         // Live only (replay must stay deterministic): follow the user across virtual desktops (audit E2, T-005).
         // Without the COM class the overlay simply stays on one desktop, the ADR 001 fallback.

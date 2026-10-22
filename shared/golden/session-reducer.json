@@ -1,0 +1,348 @@
+{
+  "schema": 1,
+  "seam": "session-reducer",
+  "swiftAnchor": "leanring-buddy/CompanionManager.swift:430-726",
+  "description": "Seam 6. Each case starts from CompanionSessionState.Initial (plus input.initialHistory when present) and feeds input.events to CompanionSession.Reduce in order. Event types: shortcutPressed, shortcutReleased, recordingStarted, transcriptFinal {text}, responseReady {requestId, text}, ttsStarted, ttsEnded. expected.voiceStates and expected.effects have one entry per event (the state after it, and the effects it emitted, in order); expected.history is the conversation history after the last event. Effects are written as 'dismissPanel', 'cancelChatRequest <id>', 'stopTtsPlayback', 'clearPointingTarget', 'startRecording', 'stopRecording', 'startChatRequest <id> history=<count>', 'pointAtElement <x>,<y> <label>', 'speakResponse <text>' and 'analytics <event name>[: <content>]'. Parity spec PTT-02, PTT-03, CLA-07, AN-02.",
+  "cases": [
+    {
+      "id": "full-exchange-with-point",
+      "branch": "exchange-with-pointing",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:473-536, 586-724",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": " where is save " },
+          { "type": "responseReady", "requestId": 1, "text": "click the save button. [POINT:100,200:save button]" },
+          { "type": "ttsStarted" },
+          { "type": "ttsEnded" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "idle", "responding", "idle"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: where is save", "startChatRequest 1 history=0"],
+          [
+            "pointAtElement 100,200 save button",
+            "analytics element_pointed: save button",
+            "analytics ai_response_received: click the save button.",
+            "speakResponse click the save button."
+          ],
+          [],
+          []
+        ],
+        "history": [
+          { "userTranscript": "where is save", "assistantResponse": "click the save button." }
+        ]
+      }
+    },
+    {
+      "id": "repress-during-response-cancels",
+      "branch": "press-cancels-in-flight-request",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:494-497, 598, 623, 713-714",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "first question" },
+          { "type": "shortcutPressed" },
+          { "type": "responseReady", "requestId": 1, "text": "late answer [POINT:none]" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "processing", "processing"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: first question", "startChatRequest 1 history=0"],
+          ["dismissPanel", "cancelChatRequest 1", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          []
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "repress-during-speech-stops-tts",
+      "branch": "press-stops-tts",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:494-497, 684-704",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "what is html" },
+          { "type": "responseReady", "requestId": 1, "text": "the skeleton of a web page. [POINT:none]" },
+          { "type": "ttsStarted" },
+          { "type": "shortcutPressed" },
+          { "type": "ttsEnded" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "processing", "responding", "processing", "processing"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: what is html", "startChatRequest 1 history=0"],
+          ["analytics ai_response_received: the skeleton of a web page.", "speakResponse the skeleton of a web page."],
+          [],
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          []
+        ],
+        "history": [
+          { "userTranscript": "what is html", "assistantResponse": "the skeleton of a web page." }
+        ]
+      }
+    },
+    {
+      "id": "repress-during-finalize-ignored",
+      "branch": "press-ignored-while-finalizing",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:476",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "shortcutPressed" },
+          { "type": "transcriptFinal", "text": "hello there" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "processing"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          [],
+          ["analytics user_message_sent: hello there", "startChatRequest 1 history=0"]
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "ignored-press-still-emits-release",
+      "branch": "release-always-tracked",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:476-478, 511, 533",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "shortcutPressed" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "hello there" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "processing", "processing"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          [],
+          ["analytics push_to_talk_released"],
+          ["analytics user_message_sent: hello there", "startChatRequest 1 history=0"]
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "tap-without-speech",
+      "branch": "release-before-recording",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:449-459, 528-536",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "shortcutReleased" },
+          { "type": "recordingStarted" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "idle", "idle"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          ["analytics push_to_talk_released", "stopRecording"],
+          []
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "empty-transcript-no-chat",
+      "branch": "empty-transcript",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:603",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "  " }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "idle"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          []
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "history-cap-10",
+      "branch": "history-cap",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:609-611, 691-694",
+      "input": {
+        "initialHistory": [
+          { "userTranscript": "q1", "assistantResponse": "a1" },
+          { "userTranscript": "q2", "assistantResponse": "a2" },
+          { "userTranscript": "q3", "assistantResponse": "a3" },
+          { "userTranscript": "q4", "assistantResponse": "a4" },
+          { "userTranscript": "q5", "assistantResponse": "a5" },
+          { "userTranscript": "q6", "assistantResponse": "a6" },
+          { "userTranscript": "q7", "assistantResponse": "a7" },
+          { "userTranscript": "q8", "assistantResponse": "a8" },
+          { "userTranscript": "q9", "assistantResponse": "a9" },
+          { "userTranscript": "q10", "assistantResponse": "a10" }
+        ],
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "q11" },
+          { "type": "responseReady", "requestId": 1, "text": "a11 [POINT:none]" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "processing"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: q11", "startChatRequest 1 history=10"],
+          ["analytics ai_response_received: a11", "speakResponse a11"]
+        ],
+        "history": [
+          { "userTranscript": "q2", "assistantResponse": "a2" },
+          { "userTranscript": "q3", "assistantResponse": "a3" },
+          { "userTranscript": "q4", "assistantResponse": "a4" },
+          { "userTranscript": "q5", "assistantResponse": "a5" },
+          { "userTranscript": "q6", "assistantResponse": "a6" },
+          { "userTranscript": "q7", "assistantResponse": "a7" },
+          { "userTranscript": "q8", "assistantResponse": "a8" },
+          { "userTranscript": "q9", "assistantResponse": "a9" },
+          { "userTranscript": "q10", "assistantResponse": "a10" },
+          { "userTranscript": "q11", "assistantResponse": "a11" }
+        ]
+      }
+    },
+    {
+      "id": "history-stores-spoken-text",
+      "branch": "history-strips-point-tag",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:626-627, 684-689",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "where is the file menu" },
+          { "type": "responseReady", "requestId": 1, "text": "it's on your other monitor, up top. [POINT:285,11:file menu:screen2]" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "idle"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: where is the file menu", "startChatRequest 1 history=0"],
+          [
+            "pointAtElement 285,11 file menu",
+            "analytics element_pointed: file menu",
+            "analytics ai_response_received: it's on your other monitor, up top.",
+            "speakResponse it's on your other monitor, up top."
+          ]
+        ],
+        "history": [
+          { "userTranscript": "where is the file menu", "assistantResponse": "it's on your other monitor, up top." }
+        ]
+      }
+    },
+    {
+      "id": "blank-response-not-spoken",
+      "branch": "blank-spoken-text",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:684-702, 721-722",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "hmm" },
+          { "type": "responseReady", "requestId": 1, "text": "[POINT:none]" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "idle"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: hmm", "startChatRequest 1 history=0"],
+          ["analytics ai_response_received: "]
+        ],
+        "history": [
+          { "userTranscript": "hmm", "assistantResponse": "" }
+        ]
+      }
+    },
+    {
+      "id": "cancelled-not-stored",
+      "branch": "stale-response-ignored",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:494-497, 598, 623, 684-694",
+      "input": {
+        "initialHistory": [
+          { "userTranscript": "earlier question", "assistantResponse": "earlier answer" }
+        ],
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "abandoned question" },
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "second question" },
+          { "type": "responseReady", "requestId": 1, "text": "abandoned answer [POINT:none]" },
+          { "type": "responseReady", "requestId": 2, "text": "second answer [POINT:none]" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "processing", "processing", "processing", "listening", "processing", "processing", "processing", "processing"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: abandoned question", "startChatRequest 1 history=1"],
+          ["dismissPanel", "cancelChatRequest 1", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: second question", "startChatRequest 2 history=1"],
+          [],
+          ["analytics ai_response_received: second answer", "speakResponse second answer"]
+        ],
+        "history": [
+          { "userTranscript": "earlier question", "assistantResponse": "earlier answer" },
+          { "userTranscript": "second question", "assistantResponse": "second answer" }
+        ]
+      }
+    }
+  ]
+}

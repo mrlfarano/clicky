@@ -174,6 +174,7 @@ public sealed partial class CoordinatorReplayTests
     {
         var overlayWindow = new CursorOverlayWindow();
         var textToSpeechSink = new InMemoryTextToSpeechSink();
+        var fallbackSpeechSink = new InMemoryFallbackSpeechSink();
         var interactionRunner = new TracerInteractionRunner(
             ClickyCommandLineOptions.Parse([]),
             systemPrompt: "",
@@ -185,9 +186,10 @@ public sealed partial class CoordinatorReplayTests
             new MonitorScreenCapturer(),
             analyticsSink,
             textToSpeechSink,
-            new InMemoryFallbackSpeechSink());
+            fallbackSpeechSink);
         return new CompanionCoordinator(
-            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink, new CompanionVoiceStateReporter());
+            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink,
+            fallbackSpeechSink, new SilentReplayAudioOutput(TimeProvider.System), new CompanionVoiceStateReporter());
     }
 
     [GeneratedRegex(@"voiceState\w*\s*=(?!=)", RegexOptions.IgnoreCase)]

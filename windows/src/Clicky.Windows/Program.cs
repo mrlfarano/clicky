@@ -187,11 +187,18 @@ internal static class Program
         // One HttpClient for the life of the app, so connections and TLS sessions are reused across presses.
         var workerHttpClient = new HttpClient(workerMessageHandler) { Timeout = TimeSpan.FromSeconds(120) };
 
-        // The T-002 in-memory sinks record what the interaction outputs; replay (and live, until the real
-        // sinks land) thereby answers nothing to PostHog and opens no audio device.
+        // The sinks record what the interaction outputs into the report. Analytics stays the in-memory stub
+        // until T-044. Replay plays TTS through the silent fake output and never through the system voice, so it
+        // opens no audio device; a replay whose manifest stages no /tts (a plain --replay <fixture.sse>) keeps
+        // the TTS stub rather than failing its speech closed.
         var analyticsSink = new InMemoryAnalyticsSink();
-        var textToSpeechSink = new InMemoryTextToSpeechSink();
-        var fallbackSpeechSink = new InMemoryFallbackSpeechSink();
+        // Resolved beside /chat, so a WorkerBaseUrl path prefix carries over.
+        var ttsEndpoint = new Uri(chatEndpoint, "tts");
+        ITextToSpeechSink textToSpeechSink = replayManifest is not null && replayManifest.FindRouteFor(ttsEndpoint.AbsolutePath) is null
+            ? new InMemoryTextToSpeechSink()
+            : new WorkerTextToSpeechSink(workerHttpClient, ttsEndpoint);
+        IAudioOutput audioOutput = replayManifest is not null ? new SilentReplayAudioOutput(timeProvider) : new WasapiAudioOutput();
+        IFallbackSpeechSink fallbackSpeechSink = replayManifest is not null ? new InMemoryFallbackSpeechSink() : new SystemVoiceFallbackSpeechSink();
 
         var interactionRunner = new TracerInteractionRunner(
             options,
@@ -214,6 +221,8 @@ internal static class Program
             timeProvider,
             analyticsSink,
             textToSpeechSink,
+            fallbackSpeechSink,
+            audioOutput,
             companionVoiceStateReporter);
 
         if (options.IsReplay)

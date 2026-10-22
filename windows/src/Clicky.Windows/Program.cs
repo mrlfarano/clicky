@@ -32,6 +32,7 @@ internal static class Program
         ClickySettings settings;
         string systemPrompt;
         Uri chatEndpoint;
+        ReplayManifest? replayManifest;
         try
         {
             options = ClickyCommandLineOptions.Parse(commandLineArguments);
@@ -44,6 +45,13 @@ internal static class Program
                 ? ReplayChatEndpoint
                 : settings.TryGetChatEndpoint()
                     ?? throw new CommandLineUsageException("Live mode needs WorkerBaseUrl in appsettings.json set to the deployed Worker's https URL.");
+            // Both replay modes funnel into one manifest, so --replay and --replay-manifest share the same
+            // fail-closed routing: a route the manifest does not map can never reach the live Worker.
+            replayManifest = options.ReplayManifestPath is string replayManifestFilePath
+                ? ReplayManifest.LoadFrom(replayManifestFilePath)
+                : options.ReplayFixturePath is string replayFixturePath
+                    ? ReplayManifest.CreateForSingleChatFixture(replayFixturePath)
+                    : null;
         }
         catch (Exception startupException) when (startupException is CommandLineUsageException or InvalidDataException or IOException or JsonException)
         {
@@ -61,7 +69,7 @@ internal static class Program
         {
             try
             {
-                await RunAsync(application, options, settings, systemPrompt, chatEndpoint);
+                await RunAsync(application, options, settings, systemPrompt, chatEndpoint, replayManifest, TimeProvider.System);
             }
             catch (Exception unexpectedException)
             {
@@ -77,13 +85,15 @@ internal static class Program
         ClickyCommandLineOptions options,
         ClickySettings settings,
         string systemPrompt,
-        Uri chatEndpoint)
+        Uri chatEndpoint,
+        ReplayManifest? replayManifest,
+        TimeProvider timeProvider)
     {
         var overlayWindow = new CursorOverlayWindow();
         overlayWindow.CreateHiddenWindowHandle();
 
-        HttpMessageHandler workerMessageHandler = options.ReplayFixturePath is string replayFixturePath
-            ? new ReplayHttpMessageHandler(replayFixturePath, options.ReplayEventDelay)
+        HttpMessageHandler workerMessageHandler = replayManifest is not null
+            ? new ReplayHttpMessageHandler(replayManifest, options.ReplayEventDelay, timeProvider)
             // Cookies off, as in the Swift URLSession configuration (audit G2).
             : new SocketsHttpHandler { UseCookies = false, ConnectTimeout = TimeSpan.FromSeconds(15) };
         // One HttpClient for the life of the app, so connections and TLS sessions are reused across presses.
@@ -94,10 +104,11 @@ internal static class Program
 
         if (options.IsReplay)
         {
-            ClickyLog.Write($"replay: {options.ReplayFixturePath} (event delay {options.ReplayEventDelay.TotalMilliseconds} ms)");
+            ClickyLog.Write($"replay: {options.ReplayManifestPath ?? options.ReplayFixturePath} (event delay {options.ReplayEventDelay.TotalMilliseconds} ms)");
             TracerRunReport report = await interactionRunner.RunAsync(CancellationToken.None);
             // --linger-ms keeps the cursor on screen so QA can photograph where it landed (parity spec PNT-04).
-            await Task.Delay(options.LingerBeforeExit);
+            // The TimeProvider overload (not the bare Task.Delay) is what lets a fake clock fire this.
+            await Task.Delay(options.LingerBeforeExit, timeProvider);
             if (options.DebugCrashRequested)
             {
                 // Crash only after the report is on disk, so one run can both replay an interaction and

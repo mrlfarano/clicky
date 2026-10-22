@@ -8,6 +8,7 @@ namespace Clicky.Windows.Tests;
 /// Clicky.exe against a throwaway CLICKY_DATA_DIR, because crash reporting only means anything when
 /// the process actually dies and the dump-writing interop actually runs.
 /// </summary>
+[Collection(ClickyProcessReplayCollection.Name)] // launches Clicky.exe: serialized with the other process-launching suites (T-001 flake fix)
 public sealed class CrashReportingTests
 {
     // Same value as ReplayEndToEndTests.PointBasicSpokenText: the spoken text the point-basic fixture streams.

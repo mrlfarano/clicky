@@ -6,11 +6,13 @@ internal sealed class CommandLineUsageException(string message) : Exception(mess
 
 /// <summary>
 /// Command line for the tracer bullet. Live mode waits for the shortcut; replay mode runs one interaction
-/// against a recorded /chat stream and exits (ADR 001 tracer item 4).
+/// against recorded responses and exits (ADR 001 tracer item 4). Replay takes either a single /chat fixture
+/// (--replay) or a manifest mapping every Worker route (--replay-manifest, WS-04 part 1).
 /// </summary>
 internal sealed record ClickyCommandLineOptions(
     string? ReplayFixturePath,
     TimeSpan ReplayEventDelay,
+    string? ReplayManifestPath,
     string? RecordFixturePath,
     string ReportPath,
     string? SaveCapturesDirectory,
@@ -19,16 +21,17 @@ internal sealed record ClickyCommandLineOptions(
     bool DebugCrashRequested)
 {
     public const string UsageText =
-        "usage: Clicky.exe [--replay <fixture.sse> [--event-delay-ms N] [--linger-ms N]] [--record <fixture.sse>]\n" +
-        "                  [--report <report.json>] [--save-captures <directory>] [--debug-stall-hook-once]\n" +
-        "                  [--debug-crash]";
+        "usage: Clicky.exe [--replay <fixture.sse> | --replay-manifest <manifest.json>] [--event-delay-ms N] [--linger-ms N]\n" +
+        "                  [--record <fixture.sse>] [--report <report.json>] [--save-captures <directory>]\n" +
+        "                  [--debug-stall-hook-once] [--debug-crash]";
 
-    public bool IsReplay => ReplayFixturePath is not null;
+    public bool IsReplay => ReplayFixturePath is not null || ReplayManifestPath is not null;
 
     public static ClickyCommandLineOptions Parse(IReadOnlyList<string> commandLineArguments)
     {
         string? replayFixturePath = null;
         int? replayEventDelayMilliseconds = null;
+        string? replayManifestPath = null;
         string? recordFixturePath = null;
         string? reportPath = null;
         string? saveCapturesDirectory = null;
@@ -46,6 +49,7 @@ internal sealed record ClickyCommandLineOptions(
             switch (argumentName)
             {
                 case "--replay": replayFixturePath = Path.GetFullPath(NextValue()); break;
+                case "--replay-manifest": replayManifestPath = Path.GetFullPath(NextValue()); break;
                 case "--event-delay-ms": replayEventDelayMilliseconds = ParseNonNegativeMilliseconds(argumentName, NextValue()); break;
                 case "--record": recordFixturePath = Path.GetFullPath(NextValue()); break;
                 case "--report": reportPath = Path.GetFullPath(NextValue()); break;
@@ -57,22 +61,32 @@ internal sealed record ClickyCommandLineOptions(
             }
         }
 
-        if (replayFixturePath is null && (replayEventDelayMilliseconds is not null || lingerMilliseconds is not null))
+        bool hasAnyReplayMode = replayFixturePath is not null || replayManifestPath is not null;
+        if (!hasAnyReplayMode && (replayEventDelayMilliseconds is not null || lingerMilliseconds is not null))
         {
-            throw new CommandLineUsageException("--event-delay-ms and --linger-ms only apply with --replay.");
+            throw new CommandLineUsageException("--event-delay-ms and --linger-ms only apply with --replay or --replay-manifest.");
         }
-        if (replayFixturePath is not null && recordFixturePath is not null)
+        if (replayFixturePath is not null && replayManifestPath is not null)
         {
-            throw new CommandLineUsageException("--record tees a live response, so it cannot be combined with --replay.");
+            throw new CommandLineUsageException("--replay and --replay-manifest are two ways to stage the same run; pass only one.");
+        }
+        if (hasAnyReplayMode && recordFixturePath is not null)
+        {
+            throw new CommandLineUsageException("--record tees a live response, so it cannot be combined with --replay or --replay-manifest.");
         }
         if (replayFixturePath is not null && !File.Exists(replayFixturePath))
         {
             throw new CommandLineUsageException($"Replay fixture not found: {replayFixturePath}");
         }
+        if (replayManifestPath is not null && !File.Exists(replayManifestPath))
+        {
+            throw new CommandLineUsageException($"Replay manifest not found: {replayManifestPath}");
+        }
 
         return new ClickyCommandLineOptions(
             replayFixturePath,
             TimeSpan.FromMilliseconds(replayEventDelayMilliseconds ?? 0),
+            replayManifestPath,
             recordFixturePath,
             reportPath ?? Path.Combine(Path.GetTempPath(), "clicky-report.json"),
             saveCapturesDirectory,

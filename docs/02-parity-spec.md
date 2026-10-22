@@ -72,6 +72,7 @@ Rules:
 | `displayTimeline[] {tMs, text}` | 3c | Bubble text each time it changes, with the ms since the first SSE event was delivered |
 | `point {screenIndex, monitorDevice, targetPx {x,y}, hotspotPx {x,y}}` | 3c | Parsed target plus where the overlay hotspot ended up (`null` when nothing was pointed at) |
 | `requestBody` | 3c | Outgoing `/chat` JSON, with each image's base64 replaced by `{sha256, width, height, bytes}` |
+| `captureTimeline[]` | 6 | Virtual-clock tMs of every screen capture, one per submitted transcript (CLA-01) |
 | `voiceStateTimeline[] {tMs, state}` | 6 | `idle/listening/processing/responding` changes |
 | `analyticsEvents[] {name, properties}` | 6 | Events sent to the analytics sink (stubbed in replay, so nothing reaches PostHog) |
 | `ttsRequests[]`, `fallbackUtterances[]` | 6 | `/tts` bodies sent, and system-voice fallback strings spoken |
@@ -255,7 +256,7 @@ Swift: [ClaudeAPI.swift:101-212](../leanring-buddy/ClaudeAPI.swift#L101-L212), [
 
 **CLA-01 · Screenshot set: per monitor, cursor first, labelled, ≤1280 long edge, JPEG q0.8**
 - **Given** N monitors, with the cursor on one of them.
-- **When** a transcript is submitted (or, in the tracer bullet, the shortcut is pressed).
+- **When** a transcript is submitted, never at the shortcut press ([CompanionManager.swift:520-524](../leanring-buddy/CompanionManager.swift#L520-L524), [:596](../leanring-buddy/CompanionManager.swift#L596)).
 - **Then**:
   - One JPEG per monitor, with the **cursor's monitor first** ([CompanionScreenCaptureUtility.swift:60-68](../leanring-buddy/CompanionScreenCaptureUtility.swift#L60-L68)).
   - The long edge is 1280, and the short edge is `Int(1280 / aspect)`, **truncated**. For example 1512×982 → 1280×831 ([:83-92](../leanring-buddy/CompanionScreenCaptureUtility.swift#L83-L92)).
@@ -265,7 +266,7 @@ Swift: [ClaudeAPI.swift:101-212](../leanring-buddy/ClaudeAPI.swift#L101-L212), [
 - **Fixture & harness**:
   - `shared/golden/capture-plan.json` (Lands 6): monitors plus cursor → order, labels and sizes. Run by Core.
   - Manual-VM ADR acceptance 7 (Lands 3c). **Evidence:** the saved frame PNGs per monitor with their sizes, the non-black pixel ratio printed in the log, and on 1903 a log line showing the overlay hidden→shown in under 250 ms.
-  - Replay asserts `requestBody` image `{width,height}` and the label strings.
+  - Replay asserts `requestBody` image `{width,height}` and the label strings, and that `captureTimeline` has one entry per submitted transcript and none at a press (`ReplayEndToEndTests.CaptureHappensAtSubmit`).
 
 **CLA-02 · Request body**
 - **Given** a transcript T, history H, model M, and the labelled images from CLA-01.

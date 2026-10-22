@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "seam": "assemblyai-turns",
+  "swiftAnchor": "leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift:273-347",
+  "description": "AssemblyAiTurnTranscriptAssembler.ApplyTurnMessage over input.messages in order (AssemblyAI Turn messages; a missing field is absent). expected.transcriptAfterEachMessage has one entry per message: the composed transcript after it (committed turns in ascending turn_order joined by spaces, then the trimmed active turn). end_of_turn or turn_is_formatted commits a turn; a formatted turn is never overwritten by an unformatted one for the same order; empty turns are not stored; a missing turn_order falls back to the active order, else max stored order + 1 (AssemblyAIStreamingTranscriptionProvider.swift:273-347). tokenResponseCases: AssemblyAiTemporaryTokenResponseParser.ParseTemporaryToken(input.httpStatusCode, input.responseBody) returns expected.token or throws expected.errorMessage (:61-84). Parity spec STT-01, STT-03.",
+  "tokenResponseCases": [
+    { "id": "status-200-with-token", "input": { "httpStatusCode": 200, "responseBody": "{\"token\":\"temporary-token-abc123\"}" }, "expected": { "token": "temporary-token-abc123" } },
+    { "id": "status-201-is-2xx", "input": { "httpStatusCode": 201, "responseBody": "{\"token\":\"temporary-token-def456\",\"expires_in_seconds\":480}" }, "expected": { "token": "temporary-token-def456" } },
+    { "id": "status-500", "input": { "httpStatusCode": 500, "responseBody": "upstream unavailable" }, "expected": { "errorMessage": "Failed to fetch AssemblyAI token (HTTP 500): upstream unavailable" } },
+    { "id": "status-401-even-with-token", "input": { "httpStatusCode": 401, "responseBody": "{\"token\":\"temporary-token-abc123\"}" }, "expected": { "errorMessage": "Failed to fetch AssemblyAI token (HTTP 401): {\"token\":\"temporary-token-abc123\"}" } },
+    { "id": "status-302", "input": { "httpStatusCode": 302, "responseBody": "" }, "expected": { "errorMessage": "Failed to fetch AssemblyAI token (HTTP 302): " } },
+    { "id": "body-without-token", "input": { "httpStatusCode": 200, "responseBody": "{\"expires_in_seconds\":480}" }, "expected": { "errorMessage": "Invalid token response from proxy." } },
+    { "id": "body-token-not-string", "input": { "httpStatusCode": 200, "responseBody": "{\"token\":12345}" }, "expected": { "errorMessage": "Invalid token response from proxy." } },
+    { "id": "body-not-json", "input": { "httpStatusCode": 200, "responseBody": "not json" }, "expected": { "errorMessage": "Invalid token response from proxy." } },
+    { "id": "body-json-array", "input": { "httpStatusCode": 200, "responseBody": "[\"token\"]" }, "expected": { "errorMessage": "Invalid token response from proxy." } },
+    { "id": "body-empty", "input": { "httpStatusCode": 200, "responseBody": "" }, "expected": { "errorMessage": "Invalid token response from proxy." } }
+  ],
+  "cases": [
+    {
+      "id": "ascending-join",
+      "branch": "committed-turns-sorted-by-order",
+      "input": {
+        "messages": [
+          { "type": "Turn", "transcript": "world", "turn_order": 1, "end_of_turn": true, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "hello", "turn_order": 0, "end_of_turn": true, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "  and more  ", "turn_order": 2, "end_of_turn": false, "turn_is_formatted": false }
+        ]
+      },
+      "expected": { "transcriptAfterEachMessage": ["world", "hello world", "hello world and more"], "fullTranscript": "hello world and more" }
+    },
+    {
+      "id": "formatted-not-overwritten",
+      "branch": "formatted-turn-kept",
+      "input": {
+        "messages": [
+          { "type": "Turn", "transcript": "hello wor", "turn_order": 0, "end_of_turn": false, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "hello world", "turn_order": 0, "end_of_turn": true, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "Hello world.", "turn_order": 0, "end_of_turn": true, "turn_is_formatted": true },
+          { "type": "Turn", "transcript": "hello world", "turn_order": 0, "end_of_turn": true, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "Second.", "turn_order": 1, "end_of_turn": false, "turn_is_formatted": true }
+        ]
+      },
+      "expected": { "transcriptAfterEachMessage": ["hello wor", "hello world", "Hello world.", "Hello world.", "Hello world. Second."], "fullTranscript": "Hello world. Second." }
+    },
+    {
+      "id": "empty-not-stored",
+      "branch": "empty-turn-skipped",
+      "input": {
+        "messages": [
+          { "type": "Turn", "transcript": "Hello.", "turn_order": 0, "end_of_turn": true, "turn_is_formatted": true },
+          { "type": "Turn", "transcript": "   ", "turn_order": 0, "end_of_turn": true, "turn_is_formatted": true },
+          { "type": "Turn", "turn_order": 5, "end_of_turn": true, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "next", "end_of_turn": true, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "three", "turn_order": 3, "end_of_turn": true, "turn_is_formatted": false }
+        ]
+      },
+      "expected": { "transcriptAfterEachMessage": ["Hello.", "Hello.", "Hello.", "Hello. next", "Hello. next three"], "fullTranscript": "Hello. next three" }
+    },
+    {
+      "id": "missing-order-falls-back-to-active",
+      "branch": "missing-order-uses-active-order",
+      "input": {
+        "messages": [
+          { "type": "Turn", "transcript": "partial te", "turn_order": 4, "end_of_turn": false, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "partial text", "end_of_turn": false, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "Partial text.", "end_of_turn": true, "turn_is_formatted": true },
+          { "type": "Turn", "transcript": "Earlier.", "turn_order": 2, "end_of_turn": true, "turn_is_formatted": true }
+        ]
+      },
+      "expected": { "transcriptAfterEachMessage": ["partial te", "partial text", "Partial text.", "Earlier. Partial text."], "fullTranscript": "Earlier. Partial text." }
+    },
+    {
+      "id": "missing-order-falls-back-to-max-plus-one",
+      "branch": "missing-order-uses-max-stored-plus-one",
+      "input": {
+        "messages": [
+          { "type": "Turn", "transcript": "first", "end_of_turn": true },
+          { "type": "Turn", "transcript": "five", "turn_order": 5, "end_of_turn": true },
+          { "type": "Turn", "transcript": "six", "end_of_turn": true },
+          { "type": "Turn", "transcript": "two", "turn_order": 2, "end_of_turn": true }
+        ]
+      },
+      "expected": { "transcriptAfterEachMessage": ["first", "first five", "first five six", "first two five six"], "fullTranscript": "first two five six" }
+    },
+    {
+      "id": "partial-replaces-active-turn",
+      "branch": "partial-turn-replaced",
+      "input": {
+        "messages": [
+          { "type": "Turn", "transcript": "hi", "turn_order": 0, "end_of_turn": false, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "hi there", "turn_order": 0, "end_of_turn": false, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "   ", "turn_order": 0, "end_of_turn": false, "turn_is_formatted": false }
+        ]
+      },
+      "expected": { "transcriptAfterEachMessage": ["hi", "hi there", ""], "fullTranscript": "" }
+    },
+    {
+      "id": "commit-clears-active-turn",
+      "branch": "commit-clears-active-turn",
+      "input": {
+        "messages": [
+          { "type": "Turn", "transcript": "still talking", "turn_order": 1, "end_of_turn": false, "turn_is_formatted": false },
+          { "type": "Turn", "transcript": "Done.", "turn_order": 0, "end_of_turn": true, "turn_is_formatted": true }
+        ]
+      },
+      "expected": { "transcriptAfterEachMessage": ["still talking", "Done."], "fullTranscript": "Done." }
+    }
+  ]
+}

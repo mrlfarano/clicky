@@ -39,6 +39,12 @@ internal sealed class TracerRunReport
 
     public List<MonitorReport> Monitors { get; } = [];
     public List<string> CaptureErrors { get; } = [];
+
+    /// <summary>
+    /// The virtual-clock tMs of every screen capture, one per submitted transcript (parity spec CLA-01). Unlike
+    /// monitors and requestBody, which describe the latest exchange, it accumulates over the whole run.
+    /// </summary>
+    public List<long> CaptureTimeline { get; } = [];
     public JsonNode? RequestBody { get; set; }
     public string? Error { get; set; }
 

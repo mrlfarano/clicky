@@ -7,7 +7,10 @@ internal sealed class CommandLineUsageException(string message) : Exception(mess
 /// <summary>
 /// Command line for the tracer bullet. Live mode waits for the shortcut; replay mode runs one interaction
 /// against recorded responses and exits (ADR 001 tracer item 4). Replay takes either a single /chat fixture
-/// (--replay) or a manifest mapping every Worker route (--replay-manifest, WS-04 part 1).
+/// (--replay) or a manifest mapping every Worker route (--replay-manifest, WS-04 part 1). The parity-harness
+/// flags --settings-override, --script and --debug-trigger-onboarding-demo (WS-04 part 2) shape that same
+/// replay: overridden user settings in the report, scripted input events on the virtual clock, and the
+/// onboarding demo interaction instead of the tracer prompt.
 /// </summary>
 internal sealed record ClickyCommandLineOptions(
     string? ReplayFixturePath,
@@ -18,10 +21,14 @@ internal sealed record ClickyCommandLineOptions(
     string? SaveCapturesDirectory,
     TimeSpan LingerBeforeExit,
     bool StallFirstHookCallback,
-    bool DebugCrashRequested)
+    bool DebugCrashRequested,
+    IReadOnlyList<SettingsOverridePair> SettingsOverrides,
+    string? ScriptPath,
+    bool DebugTriggerOnboardingDemo)
 {
     public const string UsageText =
         "usage: Clicky.exe [--replay <fixture.sse> | --replay-manifest <manifest.json>] [--event-delay-ms N] [--linger-ms N]\n" +
+        "                  [--settings-override key=value,...] [--script <script.json>] [--debug-trigger-onboarding-demo]\n" +
         "                  [--record <fixture.sse>] [--report <report.json>] [--save-captures <directory>]\n" +
         "                  [--debug-stall-hook-once] [--debug-crash]";
 
@@ -38,6 +45,9 @@ internal sealed record ClickyCommandLineOptions(
         int? lingerMilliseconds = null;
         bool stallFirstHookCallback = false;
         bool debugCrashRequested = false;
+        List<SettingsOverridePair>? settingsOverrides = null;
+        string? scriptPath = null;
+        bool debugTriggerOnboardingDemo = false;
 
         for (int argumentIndex = 0; argumentIndex < commandLineArguments.Count; argumentIndex++)
         {
@@ -51,6 +61,9 @@ internal sealed record ClickyCommandLineOptions(
                 case "--replay": replayFixturePath = Path.GetFullPath(NextValue()); break;
                 case "--replay-manifest": replayManifestPath = Path.GetFullPath(NextValue()); break;
                 case "--event-delay-ms": replayEventDelayMilliseconds = ParseNonNegativeMilliseconds(argumentName, NextValue()); break;
+                case "--settings-override": (settingsOverrides ??= []).AddRange(ParseSettingsOverridePairs(argumentName, NextValue())); break;
+                case "--script": scriptPath = Path.GetFullPath(NextValue()); break;
+                case "--debug-trigger-onboarding-demo": debugTriggerOnboardingDemo = true; break;
                 case "--record": recordFixturePath = Path.GetFullPath(NextValue()); break;
                 case "--report": reportPath = Path.GetFullPath(NextValue()); break;
                 case "--save-captures": saveCapturesDirectory = Path.GetFullPath(NextValue()); break;
@@ -65,6 +78,14 @@ internal sealed record ClickyCommandLineOptions(
         if (!hasAnyReplayMode && (replayEventDelayMilliseconds is not null || lingerMilliseconds is not null))
         {
             throw new CommandLineUsageException("--event-delay-ms and --linger-ms only apply with --replay or --replay-manifest.");
+        }
+        // The harness flags drive a deterministic replay run: --script stages input events on the virtual
+        // clock (live input comes from the real keyboard hook instead), and --settings-override exists so
+        // parity scenarios can pin settings without touching the user's real settings file.
+        if (!hasAnyReplayMode && (settingsOverrides is not null || scriptPath is not null || debugTriggerOnboardingDemo))
+        {
+            throw new CommandLineUsageException(
+                "--settings-override, --script and --debug-trigger-onboarding-demo only apply with --replay or --replay-manifest.");
         }
         if (replayFixturePath is not null && replayManifestPath is not null)
         {
@@ -82,6 +103,10 @@ internal sealed record ClickyCommandLineOptions(
         {
             throw new CommandLineUsageException($"Replay manifest not found: {replayManifestPath}");
         }
+        if (scriptPath is not null && !File.Exists(scriptPath))
+        {
+            throw new CommandLineUsageException($"Input script not found: {scriptPath}");
+        }
 
         return new ClickyCommandLineOptions(
             replayFixturePath,
@@ -92,11 +117,38 @@ internal sealed record ClickyCommandLineOptions(
             saveCapturesDirectory,
             TimeSpan.FromMilliseconds(lingerMilliseconds ?? 0),
             stallFirstHookCallback,
-            debugCrashRequested);
+            debugCrashRequested,
+            settingsOverrides ?? [],
+            scriptPath,
+            debugTriggerOnboardingDemo);
     }
 
     private static int ParseNonNegativeMilliseconds(string argumentName, string argumentValue) =>
         int.TryParse(argumentValue, NumberStyles.None, CultureInfo.InvariantCulture, out int milliseconds)
             ? milliseconds
             : throw new CommandLineUsageException($"{argumentName} needs a whole number of milliseconds, got '{argumentValue}'.");
+
+    /// <summary>
+    /// Splits a --settings-override value ("key=value,key=value") into pairs. Only the comma format is
+    /// checked here; which keys exist and what values they accept is decided by
+    /// <see cref="CompanionSettingsOverrideApplier"/>, which knows the settings model. Values therefore
+    /// cannot contain commas.
+    /// </summary>
+    private static IEnumerable<SettingsOverridePair> ParseSettingsOverridePairs(string argumentName, string settingsOverrideText)
+    {
+        if (string.IsNullOrWhiteSpace(settingsOverrideText))
+        {
+            throw new CommandLineUsageException($"{argumentName} needs comma-separated key=value pairs, got an empty value.");
+        }
+        foreach (string overrideItem in settingsOverrideText.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int separatorIndex = overrideItem.IndexOf('=');
+            if (separatorIndex <= 0 || separatorIndex == overrideItem.Length - 1)
+            {
+                throw new CommandLineUsageException(
+                    $"{argumentName} needs comma-separated key=value pairs, got '{settingsOverrideText}'.");
+            }
+            yield return new SettingsOverridePair(overrideItem[..separatorIndex], overrideItem[(separatorIndex + 1)..]);
+        }
+    }
 }

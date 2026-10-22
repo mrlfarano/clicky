@@ -13,6 +13,12 @@ internal static class Program
     // Replay never touches the network, so it needs no Worker URL; this is what lets CI run with none configured.
     private static readonly Uri ReplayChatEndpoint = new("http://replay.clicky.invalid/chat");
 
+    /// <summary>
+    /// The onboarding demo's fixed user text (ONB-02, CompanionManager.swift:990): the demo asks Claude to
+    /// look around and pick something to point at, unprompted, while the intro video plays.
+    /// </summary>
+    private const string OnboardingDemoUserPromptText = "look around my screen and find something interesting to point at";
+
     [STAThread]
     private static int Main(string[] commandLineArguments)
     {
@@ -30,14 +36,44 @@ internal static class Program
 
         ClickyCommandLineOptions options;
         ClickySettings settings;
-        string systemPrompt;
+        string interactionSystemPrompt;
+        string interactionUserPromptText;
+        string effectiveClaudeModel;
+        CompanionSettings effectiveUserSettings;
         Uri chatEndpoint;
         ReplayManifest? replayManifest;
+        ReplayScript? replayScript;
         try
         {
             options = ClickyCommandLineOptions.Parse(commandLineArguments);
             settings = ClickySettings.LoadFromApplicationDirectory();
-            systemPrompt = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "prompts", "companion-voice-response.txt"));
+            interactionSystemPrompt = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "prompts", "companion-voice-response.txt"));
+            // The user settings the app loaded: %LOCALAPPDATA%\Clicky\settings.json merged over the ONB-04
+            // defaults when that file exists (Core's merger, T-017). T-018 (WS-12) adds writing it; reading
+            // it here already keeps --settings-override semantics complete — the override layer applies over
+            // whatever was loaded, and both land in the report's effectiveSettings section.
+            string userSettingsFilePath = Path.Combine(ClickyDataDirectory.RootPath, "settings.json");
+            string? userSettingsFileContents = File.Exists(userSettingsFilePath) ? File.ReadAllText(userSettingsFilePath) : null;
+            CompanionSettings loadedUserSettings =
+                CompanionSettingsMerger.MergeUserSettingsFileContentsOverDefaults(userSettingsFileContents).Settings;
+            effectiveUserSettings = CompanionSettingsOverrideApplier.Apply(loadedUserSettings, options.SettingsOverrides);
+            // The tracer's model comes from appsettings.json; a selectedClaudeModel override (parity spec
+            // CLA-08) wins over it, because the override exists to pin the model a scenario asserts on.
+            effectiveClaudeModel = options.SettingsOverrides.Any(
+                overridePair => overridePair.SettingsFileKeyName == CompanionSettingsMerger.SelectedClaudeModelSettingsFileKeyName)
+                ? effectiveUserSettings.SelectedClaudeModel
+                : settings.ClaudeModel;
+            // --debug-trigger-onboarding-demo runs the ONB-02 demo interaction instead of the tracer prompt:
+            // the demo system prompt (shared/prompts/onboarding-demo.txt) and the demo's fixed user text.
+            if (options.DebugTriggerOnboardingDemo)
+            {
+                interactionSystemPrompt = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "prompts", "onboarding-demo.txt"));
+                interactionUserPromptText = OnboardingDemoUserPromptText;
+            }
+            else
+            {
+                interactionUserPromptText = settings.TracerPromptText;
+            }
             // --debug-crash must run with zero configuration on any machine (it is a crash-reporting test
             // hook, T-016), and it crashes before any request is made, so it takes the inert replay
             // endpoint instead of demanding WorkerBaseUrl like a real live session does.
@@ -52,6 +88,7 @@ internal static class Program
                 : options.ReplayFixturePath is string replayFixturePath
                     ? ReplayManifest.CreateForSingleChatFixture(replayFixturePath)
                     : null;
+            replayScript = options.ScriptPath is string scriptFilePath ? ReplayScript.LoadFrom(scriptFilePath) : null;
         }
         catch (Exception startupException) when (startupException is CommandLineUsageException or InvalidDataException or IOException or JsonException)
         {
@@ -69,7 +106,9 @@ internal static class Program
         {
             try
             {
-                await RunAsync(application, options, settings, systemPrompt, chatEndpoint, replayManifest, TimeProvider.System);
+                await RunAsync(
+                    application, options, settings, interactionSystemPrompt, interactionUserPromptText, effectiveClaudeModel,
+                    effectiveUserSettings, chatEndpoint, replayManifest, replayScript, TimeProvider.System);
             }
             catch (Exception unexpectedException)
             {
@@ -84,9 +123,13 @@ internal static class Program
         Application application,
         ClickyCommandLineOptions options,
         ClickySettings settings,
-        string systemPrompt,
+        string interactionSystemPrompt,
+        string interactionUserPromptText,
+        string effectiveClaudeModel,
+        CompanionSettings effectiveUserSettings,
         Uri chatEndpoint,
         ReplayManifest? replayManifest,
+        ReplayScript? replayScript,
         TimeProvider timeProvider)
     {
         var overlayWindow = new CursorOverlayWindow();
@@ -99,12 +142,37 @@ internal static class Program
         // One HttpClient for the life of the app, so connections and TLS sessions are reused across presses.
         var workerHttpClient = new HttpClient(workerMessageHandler) { Timeout = TimeSpan.FromSeconds(120) };
 
+        // The T-002 in-memory sinks record what the interaction outputs; replay (and live, until the real
+        // sinks land) thereby answers nothing to PostHog and opens no audio device.
+        var analyticsSink = new InMemoryAnalyticsSink();
+        var textToSpeechSink = new InMemoryTextToSpeechSink();
+        var fallbackSpeechSink = new InMemoryFallbackSpeechSink();
+
         var interactionRunner = new TracerInteractionRunner(
-            settings, options, systemPrompt, workerHttpClient, chatEndpoint, overlayWindow, new MonitorScreenCapturer());
+            options,
+            interactionSystemPrompt,
+            interactionUserPromptText,
+            effectiveClaudeModel,
+            effectiveUserSettings,
+            replayScript,
+            workerHttpClient,
+            chatEndpoint,
+            overlayWindow,
+            new MonitorScreenCapturer(),
+            timeProvider,
+            analyticsSink,
+            textToSpeechSink,
+            fallbackSpeechSink);
 
         if (options.IsReplay)
         {
             ClickyLog.Write($"replay: {options.ReplayManifestPath ?? options.ReplayFixturePath} (event delay {options.ReplayEventDelay.TotalMilliseconds} ms)");
+            if (options.DebugTriggerOnboardingDemo)
+            {
+                // ONB-02: the demo fires its own analytics event, so a report of a demo run proves the
+                // analytics sink recorded it — the stub's counterpart of ClickyAnalytics's onboarding_demo_triggered.
+                analyticsSink.TrackEvent("onboarding_demo_triggered");
+            }
             TracerRunReport report = await interactionRunner.RunAsync(CancellationToken.None);
             // --linger-ms keeps the cursor on screen so QA can photograph where it landed (parity spec PNT-04).
             // The TimeProvider overload (not the bare Task.Delay) is what lets a fake clock fire this.

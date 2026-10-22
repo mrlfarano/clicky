@@ -1,0 +1,245 @@
+{
+  "schema": 1,
+  "seam": "push-to-talk",
+  "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:100-199",
+  "description": "Seam 7. Neutral cases feed input.events ({type: flagsChanged|keyDown|keyUp, key: space|other (default other), modifiers: [ctrl, alt, shift]}) to PushToTalkDetector, starting released; expected.transitions has one entry per event. XCTest can run only option controlOption, because Swift hard-codes currentShortcutOption (BuddyDictationManager.swift:95). Cases tagged platform windows instead feed input.rawEvents (WH_KEYBOARD_LL vkCode, scanCode, keyUp) through LowLevelKeyboardEventTranslator first; XCTest must skip them. Parity spec PTT-01, PTT-04, PTT-05.",
+  "cases": [
+    {
+      "id": "ctrl-alt-press",
+      "branch": "modifier-only-pressed",
+      "input": {
+        "option": "controlOption",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl", "alt"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed"] }
+    },
+    {
+      "id": "ctrl-alt-release",
+      "branch": "modifier-only-released",
+      "input": {
+        "option": "controlOption",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["alt"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl", "alt"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl"] },
+          { "type": "flagsChanged", "modifiers": [] }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "released", "none"] }
+    },
+    {
+      "id": "ctrl-alt-repeat-no-retrigger",
+      "branch": "modifier-only-held",
+      "input": {
+        "option": "controlOption",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl", "alt"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl", "alt"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl", "alt"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "none", "none"] }
+    },
+    {
+      "id": "ctrl-alt-extra-shift-still-presses",
+      "branch": "modifier-only-contains",
+      "input": {
+        "option": "controlOption",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["shift"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl", "alt"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "pressed"] }
+    },
+    {
+      "id": "ctrl-alt-key-events-ignored",
+      "branch": "modifier-only-ignores-keys",
+      "input": {
+        "option": "controlOption",
+        "events": [
+          { "type": "keyDown", "key": "space", "modifiers": ["ctrl", "alt"] },
+          { "type": "keyUp", "key": "space", "modifiers": ["ctrl", "alt"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none"] }
+    },
+    {
+      "id": "ctrl-alt-space-press-release",
+      "branch": "space-pressed-released",
+      "input": {
+        "option": "controlOptionSpace",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl", "alt"] },
+          { "type": "keyDown", "key": "space", "modifiers": ["ctrl", "alt"] },
+          { "type": "keyDown", "key": "space", "modifiers": ["ctrl", "alt"] },
+          { "type": "keyUp", "key": "space", "modifiers": ["ctrl", "alt"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "pressed", "none", "released"] }
+    },
+    {
+      "id": "ctrl-alt-space-release-ignores-modifiers",
+      "branch": "space-release-any-modifiers",
+      "input": {
+        "option": "controlOptionSpace",
+        "events": [
+          { "type": "keyDown", "key": "space", "modifiers": ["ctrl", "alt", "shift"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl"] },
+          { "type": "flagsChanged", "modifiers": [] },
+          { "type": "keyUp", "key": "space", "modifiers": [] }
+        ]
+      },
+      "expected": { "transitions": ["pressed", "none", "none", "released"] }
+    },
+    {
+      "id": "space-without-modifiers-no-trigger",
+      "branch": "space-missing-modifiers",
+      "input": {
+        "option": "controlOptionSpace",
+        "events": [
+          { "type": "keyDown", "key": "space", "modifiers": ["ctrl"] },
+          { "type": "keyUp", "key": "space", "modifiers": ["ctrl"] },
+          { "type": "keyDown", "key": "other", "modifiers": ["ctrl", "alt"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "none"] }
+    },
+    {
+      "id": "shift-ctrl-press",
+      "branch": "modifier-only-pressed",
+      "input": {
+        "option": "shiftControl",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["shift"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["ctrl"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "released"] }
+    },
+    {
+      "id": "lctrl-lalt-press-release",
+      "branch": "windows-left-keys",
+      "platform": "windows",
+      "input": {
+        "option": "controlOption",
+        "rawEvents": [
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 164, "scanCode": 56, "keyUp": false },
+          { "vk": 164, "scanCode": 56, "keyUp": false },
+          { "vk": 164, "scanCode": 56, "keyUp": true },
+          { "vk": 162, "scanCode": 29, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "none", "released", "none"] }
+    },
+    {
+      "id": "altgr-q-no-trigger",
+      "branch": "windows-altgr-filtered",
+      "platform": "windows",
+      "note": "AltGr+Q on the German layout types @. Windows sends a synthetic left Ctrl (scan code 0x21D = 541) plus right Alt.",
+      "input": {
+        "option": "controlOption",
+        "rawEvents": [
+          { "vk": 162, "scanCode": 541, "keyUp": false },
+          { "vk": 165, "scanCode": 56, "keyUp": false },
+          { "vk": 81, "scanCode": 16, "keyUp": false },
+          { "vk": 81, "scanCode": 16, "keyUp": true },
+          { "vk": 162, "scanCode": 541, "keyUp": true },
+          { "vk": 165, "scanCode": 56, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "none", "none", "none", "none"] }
+    },
+    {
+      "id": "altgr-with-left-ctrl-held",
+      "branch": "windows-altgr-filtered",
+      "platform": "windows",
+      "input": {
+        "option": "controlOption",
+        "rawEvents": [
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 162, "scanCode": 541, "keyUp": false },
+          { "vk": 165, "scanCode": 56, "keyUp": false },
+          { "vk": 69, "scanCode": 18, "keyUp": false },
+          { "vk": 69, "scanCode": 18, "keyUp": true },
+          { "vk": 162, "scanCode": 541, "keyUp": true },
+          { "vk": 165, "scanCode": 56, "keyUp": true },
+          { "vk": 162, "scanCode": 29, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "none", "none", "none", "none", "none", "none"] }
+    },
+    {
+      "id": "altgr-release-keeps-real-left-ctrl",
+      "branch": "windows-altgr-filtered",
+      "platform": "windows",
+      "note": "Releasing AltGr also releases its synthetic left Ctrl. That must not clear a real left Ctrl that is still held.",
+      "input": {
+        "option": "controlOption",
+        "rawEvents": [
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 162, "scanCode": 541, "keyUp": false },
+          { "vk": 165, "scanCode": 56, "keyUp": false },
+          { "vk": 162, "scanCode": 541, "keyUp": true },
+          { "vk": 165, "scanCode": 56, "keyUp": true },
+          { "vk": 164, "scanCode": 56, "keyUp": false }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "none", "none", "none", "pressed"] }
+    },
+    {
+      "id": "rctrl-ralt-no-trigger",
+      "branch": "windows-right-keys-ignored",
+      "platform": "windows",
+      "input": {
+        "option": "controlOption",
+        "rawEvents": [
+          { "vk": 163, "scanCode": 29, "keyUp": false },
+          { "vk": 165, "scanCode": 56, "keyUp": false },
+          { "vk": 165, "scanCode": 56, "keyUp": true },
+          { "vk": 163, "scanCode": 29, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "none", "none"] }
+    },
+    {
+      "id": "lctrl-ralt-no-trigger",
+      "branch": "windows-right-keys-ignored",
+      "platform": "windows",
+      "input": {
+        "option": "controlOption",
+        "rawEvents": [
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 165, "scanCode": 56, "keyUp": false },
+          { "vk": 165, "scanCode": 56, "keyUp": true },
+          { "vk": 162, "scanCode": 29, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "none", "none"] }
+    },
+    {
+      "id": "lctrl-lalt-space-press-release",
+      "branch": "windows-space",
+      "platform": "windows",
+      "input": {
+        "option": "controlOptionSpace",
+        "rawEvents": [
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 164, "scanCode": 56, "keyUp": false },
+          { "vk": 32, "scanCode": 57, "keyUp": false },
+          { "vk": 164, "scanCode": 56, "keyUp": true },
+          { "vk": 32, "scanCode": 57, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "pressed", "none", "released"] }
+    }
+  ]
+}

@@ -6,3 +6,14 @@ build/
 releases/
 .claude/
 coding-plans/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Windows port (.NET) build output. Scoped to windows/ so the macOS build/ rule above is unaffected.
+windows/**/bin/
+windows/**/obj/
+windows/**/publish/
+windows/**/TestResults/
+# CI writes logs, test results and the published app here (.github/workflows/ci.yml).
+/artifacts/

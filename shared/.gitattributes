@@ -1,0 +1,3 @@
+# Prompts, vectors and SSE fixtures are compared byte-for-byte by both the Swift and .NET runners.
+# Keep LF everywhere so a Windows checkout with core.autocrlf cannot change the system prompt or a fixture.
+* text eol=lf

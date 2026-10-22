@@ -1,0 +1,83 @@
+using System.Globalization;
+
+namespace Clicky.Windows;
+
+internal sealed class CommandLineUsageException(string message) : Exception(message);
+
+/// <summary>
+/// Command line for the tracer bullet. Live mode waits for the shortcut; replay mode runs one interaction
+/// against a recorded /chat stream and exits (ADR 001 tracer item 4).
+/// </summary>
+internal sealed record ClickyCommandLineOptions(
+    string? ReplayFixturePath,
+    TimeSpan ReplayEventDelay,
+    string? RecordFixturePath,
+    string ReportPath,
+    string? SaveCapturesDirectory,
+    TimeSpan LingerBeforeExit,
+    bool StallFirstHookCallback)
+{
+    public const string UsageText =
+        "usage: Clicky.exe [--replay <fixture.sse> [--event-delay-ms N] [--linger-ms N]] [--record <fixture.sse>]\n" +
+        "                  [--report <report.json>] [--save-captures <directory>] [--debug-stall-hook-once]";
+
+    public bool IsReplay => ReplayFixturePath is not null;
+
+    public static ClickyCommandLineOptions Parse(IReadOnlyList<string> commandLineArguments)
+    {
+        string? replayFixturePath = null;
+        int? replayEventDelayMilliseconds = null;
+        string? recordFixturePath = null;
+        string? reportPath = null;
+        string? saveCapturesDirectory = null;
+        int? lingerMilliseconds = null;
+        bool stallFirstHookCallback = false;
+
+        for (int argumentIndex = 0; argumentIndex < commandLineArguments.Count; argumentIndex++)
+        {
+            string argumentName = commandLineArguments[argumentIndex];
+            string NextValue() => argumentIndex + 1 < commandLineArguments.Count
+                ? commandLineArguments[++argumentIndex]
+                : throw new CommandLineUsageException($"{argumentName} needs a value.");
+
+            switch (argumentName)
+            {
+                case "--replay": replayFixturePath = Path.GetFullPath(NextValue()); break;
+                case "--event-delay-ms": replayEventDelayMilliseconds = ParseNonNegativeMilliseconds(argumentName, NextValue()); break;
+                case "--record": recordFixturePath = Path.GetFullPath(NextValue()); break;
+                case "--report": reportPath = Path.GetFullPath(NextValue()); break;
+                case "--save-captures": saveCapturesDirectory = Path.GetFullPath(NextValue()); break;
+                case "--linger-ms": lingerMilliseconds = ParseNonNegativeMilliseconds(argumentName, NextValue()); break;
+                case "--debug-stall-hook-once": stallFirstHookCallback = true; break;
+                default: throw new CommandLineUsageException($"Unknown argument '{argumentName}'.");
+            }
+        }
+
+        if (replayFixturePath is null && (replayEventDelayMilliseconds is not null || lingerMilliseconds is not null))
+        {
+            throw new CommandLineUsageException("--event-delay-ms and --linger-ms only apply with --replay.");
+        }
+        if (replayFixturePath is not null && recordFixturePath is not null)
+        {
+            throw new CommandLineUsageException("--record tees a live response, so it cannot be combined with --replay.");
+        }
+        if (replayFixturePath is not null && !File.Exists(replayFixturePath))
+        {
+            throw new CommandLineUsageException($"Replay fixture not found: {replayFixturePath}");
+        }
+
+        return new ClickyCommandLineOptions(
+            replayFixturePath,
+            TimeSpan.FromMilliseconds(replayEventDelayMilliseconds ?? 0),
+            recordFixturePath,
+            reportPath ?? Path.Combine(Path.GetTempPath(), "clicky-report.json"),
+            saveCapturesDirectory,
+            TimeSpan.FromMilliseconds(lingerMilliseconds ?? 0),
+            stallFirstHookCallback);
+    }
+
+    private static int ParseNonNegativeMilliseconds(string argumentName, string argumentValue) =>
+        int.TryParse(argumentValue, NumberStyles.None, CultureInfo.InvariantCulture, out int milliseconds)
+            ? milliseconds
+            : throw new CommandLineUsageException($"{argumentName} needs a whole number of milliseconds, got '{argumentValue}'.");
+}

@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "seam": "point-tag",
+  "swiftAnchor": "leanring-buddy/CompanionManager.swift:784-823",
+  "description": "PointTag.Parse / CompanionManager.parsePointingCoordinates. expected.x/y/label/screen are null when absent. Parity spec PNT-01.",
+  "cases": [
+    {
+      "id": "full-with-screen",
+      "branch": "coordinate+label+screen",
+      "input": { "text": "that's over on your other monitor. [POINT:400,300:terminal:screen2]" },
+      "expected": { "spokenText": "that's over on your other monitor.", "x": 400, "y": 300, "label": "terminal", "screen": 2 }
+    },
+    {
+      "id": "label-no-screen",
+      "branch": "coordinate+label",
+      "input": { "text": "open the color inspector up top. [POINT:1100,42:color inspector]" },
+      "expected": { "spokenText": "open the color inspector up top.", "x": 1100, "y": 42, "label": "color inspector", "screen": null }
+    },
+    {
+      "id": "coords-only",
+      "branch": "coordinate-only",
+      "input": { "text": "right here [POINT:10,20]" },
+      "expected": { "spokenText": "right here", "x": 10, "y": 20, "label": null, "screen": null }
+    },
+    {
+      "id": "spaces-around-comma",
+      "branch": "coordinate-whitespace",
+      "input": { "text": "here [POINT:10 , 20:x]" },
+      "expected": { "spokenText": "here", "x": 10, "y": 20, "label": "x", "screen": null }
+    },
+    {
+      "id": "trailing-whitespace",
+      "branch": "trailing-whitespace-after-tag",
+      "input": { "text": "here [POINT:1,2:a]\n  " },
+      "expected": { "spokenText": "here", "x": 1, "y": 2, "label": "a", "screen": null }
+    },
+    {
+      "id": "none",
+      "branch": "point-none",
+      "input": { "text": "html is the skeleton of every web page. [POINT:none]" },
+      "expected": { "spokenText": "html is the skeleton of every web page.", "x": null, "y": null, "label": "none", "screen": null }
+    },
+    {
+      "id": "no-tag",
+      "branch": "no-tag",
+      "input": { "text": "just text  " },
+      "expected": { "spokenText": "just text  ", "x": null, "y": null, "label": null, "screen": null }
+    },
+    {
+      "id": "tag-not-at-end",
+      "branch": "no-tag",
+      "input": { "text": "[POINT:1,2:a] more" },
+      "expected": { "spokenText": "[POINT:1,2:a] more", "x": null, "y": null, "label": null, "screen": null }
+    },
+    {
+      "id": "negative-or-decimal",
+      "branch": "no-tag",
+      "input": { "text": "look [POINT:-5,2.5:a]" },
+      "expected": { "spokenText": "look [POINT:-5,2.5:a]", "x": null, "y": null, "label": null, "screen": null }
+    },
+    {
+      "id": "label-leading-space",
+      "branch": "no-tag",
+      "input": { "text": "look [POINT:1,2: a]" },
+      "expected": { "spokenText": "look [POINT:1,2: a]", "x": null, "y": null, "label": null, "screen": null }
+    },
+    {
+      "id": "label-looks-like-screen",
+      "branch": "coordinate+label",
+      "note": "The optional label group is tried first and succeeds, so 'screen2' is the label and there is no screen number. Derived from the regex; parity spec PNT-01 wants this confirmed by an XCTest run on a Mac.",
+      "input": { "text": "look [POINT:1,2:screen2]" },
+      "expected": { "spokenText": "look", "x": 1, "y": 2, "label": "screen2", "screen": null }
+    },
+    {
+      "id": "screen-out-of-range",
+      "branch": "coordinate+label+screen",
+      "note": "The parser keeps any screen number; ScreenshotToScreenMapper decides it is out of range (screen-mapping.json).",
+      "input": { "text": "[POINT:5,6:a:screen9]" },
+      "expected": { "spokenText": "", "x": 5, "y": 6, "label": "a", "screen": 9 }
+    },
+    {
+      "id": "screen-overflow",
+      "branch": "screen-number-overflow",
+      "input": { "text": "look [POINT:1,2:a:screen99999999999999999999]" },
+      "expected": { "spokenText": "look", "x": 1, "y": 2, "label": "a", "screen": null }
+    },
+    {
+      "id": "two-tags",
+      "branch": "end-anchored-first-match",
+      "input": { "text": "first [POINT:1,1:a] then [POINT:2,2:b]" },
+      "expected": { "spokenText": "first [POINT:1,1:a] then", "x": 2, "y": 2, "label": "b", "screen": null }
+    },
+    {
+      "id": "label-trailing-space-trimmed",
+      "branch": "coordinate+label",
+      "input": { "text": "there [POINT:7,8:save button  ]" },
+      "expected": { "spokenText": "there", "x": 7, "y": 8, "label": "save button", "screen": null }
+    }
+  ]
+}

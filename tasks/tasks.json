@@ -1,0 +1,6 @@
+{
+  "schema": "clicky-windows-tasks/1",
+  "program": "Clicky Windows port",
+  "note": "Single source of truth for work items. Populated at phase 5 (task breakdown). Phase-level status lives in docs/STATUS.md.",
+  "tasks": []
+}

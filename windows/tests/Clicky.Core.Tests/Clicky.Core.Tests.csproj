@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs shared/golden vectors against Clicky.Core. Plain net10.0 so it also runs on the Linux CI job. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- xUnit v3 test projects are executables. -->
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit.v3" Version="3.1.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Clicky.Core\Clicky.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets the tests read shared/ and the Swift sources from the checkout instead of copies. -->
+    <AssemblyMetadata Include="RepositoryRootDirectory" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../..'))" />
+  </ItemGroup>
+</Project>

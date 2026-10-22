@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Windows shell (ADR 001). Compiles against the 19041 SDK for the WinRT projections but runs on 1903+;
+       19041-only APIs are runtime-guarded. -->
+  <PropertyGroup>
+    <!-- Console subsystem for the tracer bullet: QA reads the timestamped log live and quits with Ctrl+C.
+         Phase 6 brings the tray icon and switches this to WinExe. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Clicky</AssemblyName>
+    <RootNamespace>Clicky.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- CsWin32 hook and raw-input structs are read through pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.183" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- UseWPF drops these two implicit usings (name clashes with System.Windows.*); this project wants them back. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Clicky.Core\Clicky.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Seam 10: the system prompt is shared with the Mac app as a file, not a string literal. -->
+    <None Include="..\..\..\shared\prompts\companion-voice-response.txt" Link="prompts\companion-voice-response.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

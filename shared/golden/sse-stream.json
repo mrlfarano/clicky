@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "seam": "sse-stream",
+  "swiftAnchor": "leanring-buddy/ClaudeAPI.swift:180-208",
+  "description": "Seam 4: SseLineParser over input.lines in order, stopping at data: [DONE]. expected.textDeltas lists every text_delta in order and expected.text is their concatenation. expected.displayedAfterEachEvent has one entry per text_delta: what the overlay bubble shows after that delta (StreamingBubbleText, parity spec CLA-05, Windows only). Parity spec CLA-03, CLA-05.",
+  "cases": [
+    {
+      "id": "basic-deltas",
+      "branch": "text-delta",
+      "input": {
+        "lines": [
+          "event: message_start",
+          "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_basic\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}",
+          "",
+          "event: content_block_delta",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}",
+          "",
+          "event: content_block_delta",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" there\"}}",
+          "",
+          "event: message_stop",
+          "data: {\"type\":\"message_stop\"}",
+          ""
+        ]
+      },
+      "expected": { "text": "hello there", "textDeltas": ["hello", " there"], "endedByDoneMarker": false, "displayedAfterEachEvent": ["hello", "hello there"] }
+    },
+    {
+      "id": "done-marker",
+      "branch": "done-marker",
+      "input": {
+        "lines": [
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"a\"}}",
+          "data: [DONE]",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"b\"}}"
+        ]
+      },
+      "expected": { "text": "a", "textDeltas": ["a"], "endedByDoneMarker": true, "displayedAfterEachEvent": ["a"] }
+    },
+    {
+      "id": "malformed-json-skipped",
+      "branch": "malformed-json",
+      "input": {
+        "lines": [
+          "data: {not json",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}"
+        ]
+      },
+      "expected": { "text": "ok", "textDeltas": ["ok"], "endedByDoneMarker": false, "displayedAfterEachEvent": ["ok"] }
+    },
+    {
+      "id": "non-text-delta-ignored",
+      "branch": "non-text-delta",
+      "input": {
+        "lines": [
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"a\\\":1\"}}",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":42}}",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"x\"}}"
+        ]
+      },
+      "expected": { "text": "x", "textDeltas": ["x"], "endedByDoneMarker": false, "displayedAfterEachEvent": ["x"] }
+    },
+    {
+      "id": "ping-and-message-events-ignored",
+      "branch": "other-events",
+      "input": {
+        "lines": [
+          "event: content_block_start",
+          "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}",
+          "",
+          "event: ping",
+          "data: {\"type\": \"ping\"}",
+          "",
+          "data: [1,2]",
+          "data: {\"delta\":{\"type\":\"text_delta\",\"text\":\"no event type\"}}",
+          "event: message_delta",
+          "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":3}}",
+          "",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"y\"}}"
+        ]
+      },
+      "expected": { "text": "y", "textDeltas": ["y"], "endedByDoneMarker": false, "displayedAfterEachEvent": ["y"] }
+    },
+    {
+      "id": "data-without-space-ignored",
+      "branch": "non-data-line",
+      "input": {
+        "lines": [
+          "data:{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"z\"}}",
+          ": comment line",
+          "id: 7"
+        ]
+      },
+      "expected": { "text": "", "textDeltas": [], "endedByDoneMarker": false, "displayedAfterEachEvent": [] }
+    },
+    {
+      "id": "tag-split-across-deltas",
+      "branch": "hold-back-partial-tag",
+      "input": {
+        "lines": [
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"click save [PO\"}}",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"INT:640,3\"}}",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"60:save button]\"}}"
+        ]
+      },
+      "expected": {
+        "text": "click save [POINT:640,360:save button]",
+        "textDeltas": ["click save [PO", "INT:640,3", "60:save button]"],
+        "endedByDoneMarker": false,
+        "displayedAfterEachEvent": ["click save ", "click save ", "click save"]
+      }
+    },
+    {
+      "id": "point-none-hidden",
+      "branch": "hold-back-partial-tag",
+      "input": {
+        "lines": [
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"html is markup. [POINT:\"}}",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"none]\"}}"
+        ]
+      },
+      "expected": {
+        "text": "html is markup. [POINT:none]",
+        "textDeltas": ["html is markup. [POINT:", "none]"],
+        "endedByDoneMarker": false,
+        "displayedAfterEachEvent": ["html is markup. ", "html is markup."]
+      }
+    },
+    {
+      "id": "bracket-not-a-tag",
+      "branch": "bracket-shown-once-disambiguated",
+      "input": {
+        "lines": [
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"see [\"}}",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"note] here\"}}"
+        ]
+      },
+      "expected": { "text": "see [note] here", "textDeltas": ["see [", "note] here"], "endedByDoneMarker": false, "displayedAfterEachEvent": ["see ", "see [note] here"] }
+    },
+    {
+      "id": "bracket-disambiguated-before-close",
+      "branch": "bracket-shown-once-disambiguated",
+      "input": {
+        "lines": [
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"use [n\"}}",
+          "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ote]\"}}"
+        ]
+      },
+      "expected": { "text": "use [note]", "textDeltas": ["use [n", "ote]"], "endedByDoneMarker": false, "displayedAfterEachEvent": ["use [n", "use [note]"] }
+    }
+  ]
+}

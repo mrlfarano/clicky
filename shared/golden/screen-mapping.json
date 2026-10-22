@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "seam": "screen-mapping",
+  "swiftAnchor": "leanring-buddy/CompanionManager.swift:638-677",
+  "description": "Seam 3 (ScreenshotToScreenMapper) plus the screenshot sizing it depends on. input.operation picks the function. Monitor rects are virtual-screen physical pixels with a top-left origin, so the Swift AppKit y-flip has no counterpart. Expected values are worked out by hand, never by running the mapper. Parity spec PNT-02, PNT-03.",
+  "cases": [
+    {
+      "id": "screen2-of-2-selected",
+      "branch": "screen-in-range",
+      "input": { "operation": "selectTargetScreen", "screenNumber": 2, "captureCount": 2, "cursorScreenIndex": 0 },
+      "expected": { "screenIndex": 1 }
+    },
+    {
+      "id": "screen0-falls-back",
+      "branch": "screen-out-of-range",
+      "input": { "operation": "selectTargetScreen", "screenNumber": 0, "captureCount": 2, "cursorScreenIndex": 0 },
+      "expected": { "screenIndex": 0 }
+    },
+    {
+      "id": "screen3-of-2-falls-back",
+      "branch": "screen-out-of-range",
+      "input": { "operation": "selectTargetScreen", "screenNumber": 3, "captureCount": 2, "cursorScreenIndex": 0 },
+      "expected": { "screenIndex": 0 }
+    },
+    {
+      "id": "missing-screen-uses-cursor",
+      "branch": "screen-missing",
+      "input": { "operation": "selectTargetScreen", "screenNumber": null, "captureCount": 2, "cursorScreenIndex": 0 },
+      "expected": { "screenIndex": 0 }
+    },
+    {
+      "id": "primary-100pct",
+      "branch": "map",
+      "input": { "operation": "mapPoint", "monitorRectPx": { "left": 0, "top": 0, "width": 1920, "height": 1080 }, "screenshotSize": { "width": 1280, "height": 720 }, "point": { "x": 320, "y": 180 } },
+      "expected": { "x": 480, "y": 270 }
+    },
+    {
+      "id": "secondary-150pct-left-negative",
+      "branch": "map-negative-origin",
+      "note": "2880x1620 physical is a 1920x1080 panel at 150%. -2880 + 320 * 2.25 = -2160; 180 * 2.25 = 405.",
+      "input": { "operation": "mapPoint", "monitorRectPx": { "left": -2880, "top": 0, "width": 2880, "height": 1620 }, "screenshotSize": { "width": 1280, "height": 720 }, "point": { "x": 320, "y": 180 } },
+      "expected": { "x": -2160, "y": 405 }
+    },
+    {
+      "id": "monitor-above-negative-top",
+      "branch": "map-negative-origin",
+      "input": { "operation": "mapPoint", "monitorRectPx": { "left": 0, "top": -1080, "width": 1920, "height": 1080 }, "screenshotSize": { "width": 1280, "height": 720 }, "point": { "x": 0, "y": 720 } },
+      "expected": { "x": 0, "y": 0 }
+    },
+    {
+      "id": "portrait",
+      "branch": "map",
+      "input": { "operation": "mapPoint", "monitorRectPx": { "left": 1920, "top": 0, "width": 1080, "height": 1920 }, "screenshotSize": { "width": 720, "height": 1280 }, "point": { "x": 360, "y": 640 } },
+      "expected": { "x": 2460, "y": 960 }
+    },
+    {
+      "id": "clamp-beyond-edge",
+      "branch": "map-clamped",
+      "note": "(2000, 900) clamps to (1280, 720), the inclusive far corner, which maps to the monitor's right/bottom edge.",
+      "input": { "operation": "mapPoint", "monitorRectPx": { "left": 0, "top": 0, "width": 1920, "height": 1080 }, "screenshotSize": { "width": 1280, "height": 720 }, "point": { "x": 2000, "y": 900 } },
+      "expected": { "x": 1920, "y": 1080 }
+    },
+    {
+      "id": "truncated-short-edge",
+      "branch": "screenshot-size-landscape",
+      "swiftAnchor": "leanring-buddy/CompanionScreenCaptureUtility.swift:83-92",
+      "note": "1280 / (1512 / 982) = 831.32, truncated to 831.",
+      "input": { "operation": "computeScreenshotSize", "monitorSizePx": { "width": 1512, "height": 982 } },
+      "expected": { "width": 1280, "height": 831 }
+    },
+    {
+      "id": "landscape-16x9",
+      "branch": "screenshot-size-landscape",
+      "swiftAnchor": "leanring-buddy/CompanionScreenCaptureUtility.swift:83-92",
+      "input": { "operation": "computeScreenshotSize", "monitorSizePx": { "width": 2880, "height": 1620 } },
+      "expected": { "width": 1280, "height": 720 }
+    },
+    {
+      "id": "portrait-9x16",
+      "branch": "screenshot-size-portrait",
+      "swiftAnchor": "leanring-buddy/CompanionScreenCaptureUtility.swift:83-92",
+      "input": { "operation": "computeScreenshotSize", "monitorSizePx": { "width": 1080, "height": 1920 } },
+      "expected": { "width": 720, "height": 1280 }
+    },
+    {
+      "id": "small-monitor-scaled-up",
+      "branch": "screenshot-size-landscape",
+      "swiftAnchor": "leanring-buddy/CompanionScreenCaptureUtility.swift:83-92",
+      "note": "The long edge is always 1280, even when the monitor is smaller, as on macOS.",
+      "input": { "operation": "computeScreenshotSize", "monitorSizePx": { "width": 1024, "height": 768 } },
+      "expected": { "width": 1280, "height": 960 }
+    }
+  ]
+}

@@ -1,0 +1,337 @@
+# Clicky CI: parity and the Windows port (phase 3, ADR 001).
+#
+# Runners: macos-latest and windows-latest (playbook requirement), plus
+# ubuntu-latest, because ADR 001 acceptance 1 needs Clicky.Core.Tests green
+# on Linux. The jobs differ too much to share one `strategy.matrix`, so each
+# OS is its own job with a fixed name.
+#
+# CHECK NAMES ARE A CONTRACT. Branch protection requires them by name.
+# Renaming a job silently drops it from the required checks.
+#   macos-parity      golden-vector schema, worker build, parity-spec link lint
+#   windows-build     build, Core tests, replay e2e, package, (sign), Defender scan
+#   linux-core-tests  Clicky.Core.Tests on Linux
+#
+# BRANCH PROTECTION cannot be configured from the repo. The owner sets it in
+# Settings > Branches > main (or a ruleset targeting main):
+#   - Require a pull request before merging.
+#   - Require status checks to pass: macos-parity, windows-build, linux-core-tests.
+#   - Require branches to be up to date before merging.
+#   - Block force pushes (AGENTS.md: "Do not force-push to main").
+#   - Block deletions.
+# PHASE GATE: turn this on only after the first green run of the phase-3c tracer
+# bullet. Until windows/ exists, windows-build and linux-core-tests fail, and
+# requiring them would block every merge.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  macos-parity:
+    name: macos-parity
+    runs-on: macos-latest
+    timeout-minutes: 20
+    # Current scope: platform-neutral checks only.
+    # TODO(phase that touches the Xcode project): add `xcodebuild test` here to
+    # run the XCTest golden-vector file (point-tag, push-to-talk; ADR tracer item 7).
+    # Running xcodebuild here is fine even though AGENTS.md forbids it. That rule
+    # protects TCC grants (screen recording, accessibility) on a developer's own Mac.
+    # A CI runner is an ephemeral VM with no grants to lose, and the XCTest
+    # vectors never call a TCC-gated API.
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Validate shared/golden vectors
+        # Shape is defined in docs/02-parity-spec.md, "Golden vector file format".
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const goldenDirectory = 'shared/golden';
+          const filesRequiredByTracerBullet = ['point-tag', 'screen-mapping', 'sse-stream', 'push-to-talk'];
+          const failures = [];
+
+          const countLines = (filePath) => {
+            const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+            if (lines[lines.length - 1] === '') lines.pop();
+            return lines.length;
+          };
+
+          const vectorFiles = fs.existsSync(goldenDirectory)
+            ? fs.readdirSync(goldenDirectory).filter((name) => name.endsWith('.json'))
+            : [];
+          for (const requiredName of filesRequiredByTracerBullet) {
+            if (!vectorFiles.includes(`${requiredName}.json`)) {
+              failures.push(`${goldenDirectory}/${requiredName}.json is missing (ADR 001 tracer item 7)`);
+            }
+          }
+
+          for (const fileName of vectorFiles) {
+            const filePath = path.join(goldenDirectory, fileName);
+            const fail = (message) => failures.push(`${filePath}: ${message}`);
+            let vectorDocument;
+            try {
+              vectorDocument = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            } catch (parseError) {
+              fail(`invalid JSON: ${parseError.message}`);
+              continue;
+            }
+            if (vectorDocument.schema !== 1) fail('"schema" must be 1');
+            for (const key of ['seam', 'swiftAnchor']) {
+              if (typeof vectorDocument[key] !== 'string' || !vectorDocument[key].trim()) fail(`"${key}" must be a non-empty string`);
+            }
+            // swiftAnchor is "path:start[-end]". The Swift lines it cites must still exist.
+            const anchorMatch = /^(.+?):(\d+)(?:-(\d+))?$/.exec(vectorDocument.swiftAnchor || '');
+            if (!anchorMatch || !fs.existsSync(anchorMatch[1])) {
+              fail(`"swiftAnchor" must be an existing file with a line range, got "${vectorDocument.swiftAnchor}"`);
+            } else if (Number(anchorMatch[3] || anchorMatch[2]) > countLines(anchorMatch[1])) {
+              fail(`"swiftAnchor" ${vectorDocument.swiftAnchor} is past the end of the file (Swift drifted?)`);
+            }
+            if (!Array.isArray(vectorDocument.cases) || vectorDocument.cases.length === 0) {
+              fail('"cases" must be a non-empty array');
+              continue;
+            }
+            const seenCaseIds = new Set();
+            vectorDocument.cases.forEach((vectorCase, caseIndex) => {
+              if (vectorCase === null || typeof vectorCase !== 'object' || typeof vectorCase.id !== 'string' || !vectorCase.id) {
+                fail(`cases[${caseIndex}] needs a non-empty string "id"`);
+                return;
+              }
+              if (seenCaseIds.has(vectorCase.id)) fail(`duplicate case id "${vectorCase.id}"`);
+              seenCaseIds.add(vectorCase.id);
+              if (!('input' in vectorCase) || !('expected' in vectorCase)) fail(`case "${vectorCase.id}" needs "input" and "expected"`);
+            });
+            console.log(`${filePath}: ${vectorDocument.cases.length} case(s)`);
+          }
+
+          if (failures.length) {
+            failures.forEach((message) => console.log(`::error::${message}`));
+            process.exit(1);
+          }
+          console.log(`golden vectors OK (${vectorFiles.length} file(s))`);
+          EOF
+
+      - name: Lint parity-spec links
+        # Every relative markdown link in the spec must resolve, and #Lx[-Ly]
+        # anchors must still be inside the file. This catches Swift line drift.
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const specPath = 'docs/02-parity-spec.md';
+          const specText = fs.readFileSync(specPath, 'utf8');
+          const failures = [];
+          const lineCountByFile = new Map();
+          const countLines = (filePath) => {
+            if (!lineCountByFile.has(filePath)) {
+              const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+              if (lines[lines.length - 1] === '') lines.pop();
+              lineCountByFile.set(filePath, lines.length);
+            }
+            return lineCountByFile.get(filePath);
+          };
+
+          let checkedLinkCount = 0;
+          for (const [, linkTarget] of specText.matchAll(/\]\(([^)\s]+)\)/g)) {
+            if (/^[a-z][a-z0-9+.-]*:/i.test(linkTarget) || linkTarget.startsWith('#')) continue;
+            const [relativePath, anchor] = linkTarget.split('#');
+            const resolvedPath = path.normalize(path.join(path.dirname(specPath), relativePath));
+            checkedLinkCount++;
+            if (!fs.existsSync(resolvedPath)) {
+              failures.push(`${linkTarget} -> ${resolvedPath} does not exist`);
+              continue;
+            }
+            const lineAnchor = /^L(\d+)(?:-L(\d+))?$/.exec(anchor || '');
+            if (lineAnchor) {
+              const lastCitedLine = Number(lineAnchor[2] || lineAnchor[1]);
+              const fileLineCount = countLines(resolvedPath);
+              if (lastCitedLine > fileLineCount) failures.push(`${linkTarget}: line ${lastCitedLine} > ${fileLineCount} lines in ${resolvedPath}`);
+            }
+          }
+
+          if (failures.length) {
+            failures.forEach((message) => console.log(`::error file=${specPath}::${message}`));
+            process.exit(1);
+          }
+          console.log(`spec links OK (${checkedLinkCount} relative link(s) checked)`);
+          EOF
+
+      - name: Build worker
+        working-directory: worker
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        # --dry-run bundles src/index.ts without deploying. It needs no Cloudflare credentials.
+        run: |
+          set -o pipefail
+          mkdir -p ../artifacts
+          npm ci
+          npx wrangler deploy --dry-run --outdir ../artifacts/worker-dist 2>&1 | tee ../artifacts/worker-build.log
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: macos-parity-${{ github.run_attempt }}
+          path: artifacts/
+          if-no-files-found: warn
+
+  windows-build:
+    name: windows-build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+        # Run dotnet from windows/ so windows/global.json (SDK 10.0.1xx pin) applies.
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: |
+          New-Item -ItemType Directory -Force ../artifacts/logs, ../artifacts/test-results, ../artifacts/package | Out-Null
+          dotnet restore Clicky.slnx
+
+      - name: Build
+        run: dotnet build Clicky.slnx -c Release --no-restore "-bl:../artifacts/logs/build.binlog"
+
+      - name: Clicky.Core.Tests
+        run: dotnet test tests/Clicky.Core.Tests -c Release --no-build --logger "trx;LogFileName=core-tests.trx" --results-directory ../artifacts/test-results
+
+      - name: Clicky.Windows.Tests (parity replay e2e)
+        # Every test in this project drives `Clicky.exe --replay <shared/fixtures/sse/*.sse>`
+        # (ADR tracer item 4). No secrets are passed to this job and appsettings.json
+        # ships no WorkerBaseUrl, so a test that went live would fail instead of
+        # spending Worker credits.
+        run: dotnet test tests/Clicky.Windows.Tests -c Release --no-build --logger "trx;LogFileName=windows-tests.trx" --results-directory ../artifacts/test-results
+
+      - name: Publish
+        # Self-contained, so the artifact runs on the clean Win10 1903 acceptance VM
+        # (ADR acceptance list), which has no .NET 10 runtime installed.
+        run: dotnet publish src/Clicky.Windows -c Release -r win-x64 --self-contained true -o ../artifacts/publish "-bl:../artifacts/logs/publish.binlog"
+
+      - name: Sign (phase-gated; no-op without SIGNING_* secrets)
+        # Phase 5 provisions signing (ADR "Signing": Azure Trusted Signing preferred,
+        # OV .pfx fallback). This step handles the .pfx fallback. Fork PRs never
+        # receive secrets, so they always take the skip path.
+        # TODO(phase 5): switch to the Trusted Signing dlib once the account exists,
+        # and sign Setup.exe and the update packages as well.
+        env:
+          SIGNING_CERT_PFX_BASE64: ${{ secrets.SIGNING_CERT_PFX_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if (-not $env:SIGNING_CERT_PFX_BASE64) {
+            Write-Host "signing: SKIPPED - secret SIGNING_CERT_PFX_BASE64 is not set (expected before phase 5). Artifacts are unsigned."
+            exit 0
+          }
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signing: signtool.exe not found under Windows Kits" }
+          $pfxPath = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_CERT_PFX_BASE64))
+          try {
+            & $signtool.FullName sign /f $pfxPath /p $env:SIGNING_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ../artifacts/publish/Clicky.exe
+            if ($LASTEXITCODE -ne 0) { throw "signing: signtool exited $LASTEXITCODE" }
+            Write-Host "signing: Clicky.exe signed"
+          } finally {
+            Remove-Item $pfxPath -Force
+          }
+
+      - name: Package
+        # Velopack `vpk pack` is the chosen installer (ADR "Packaging"), but packaging
+        # is OUT of the tracer bullet, and vpk needs the app to reference the Velopack
+        # SDK, which the tracer does not. Until then, ship a zip.
+        # TODO(phase 4): replace with
+        #   dotnet tool install -g vpk --version <same as Velopack NuGet>
+        #   vpk pack --packId Clicky --packVersion <ver> --packDir ../artifacts/publish --mainExe Clicky.exe --outputDir ../artifacts/package
+        run: Compress-Archive -Path ../artifacts/publish/* -DestinationPath ../artifacts/package/Clicky-win-x64.zip -Force
+
+      - name: Defender scan of packaged output
+        # MpCmdRun exit codes for `-Scan -ScanType 3 -DisableRemediation`:
+        #   0      scan completed, no threats.
+        #   2      threats found. -DisableRemediation means nothing is quarantined
+        #          or cleaned, so 2 is the detection signal and the job fails.
+        #   other  the scan did not complete (service off, bad path, aborted). That
+        #          is NOT "clean", so it also fails, with a different message.
+        # -DisableRemediation also makes the custom scan ignore Defender's file
+        # exclusions and scan inside archives, so the runner image's exclusions
+        # cannot turn this into a silent no-op.
+        run: |
+          $mpCmdRun = Join-Path $env:ProgramFiles "Windows Defender\MpCmdRun.exe"
+          if (-not (Test-Path $mpCmdRun)) { throw "defender: MpCmdRun.exe not found at $mpCmdRun" }
+          & $mpCmdRun -SignatureUpdate
+          if ($LASTEXITCODE -ne 0) { Write-Host "::warning::defender: signature update exited $LASTEXITCODE; scanning with the image's existing signatures" }
+          Get-MpComputerStatus | Format-List AMServiceEnabled, AntivirusEnabled, AntivirusSignatureVersion, AntivirusSignatureLastUpdated
+          $failed = $false
+          foreach ($scanTarget in @("../artifacts/publish", "../artifacts/package")) {
+            $scanPath = (Resolve-Path $scanTarget).Path
+            Write-Host "defender: scanning $scanPath"
+            & $mpCmdRun -Scan -ScanType 3 -DisableRemediation -File $scanPath
+            $scanExitCode = $LASTEXITCODE
+            switch ($scanExitCode) {
+              0 { Write-Host "defender: $scanPath clean (exit 0)" }
+              2 { Write-Host "::error::defender: THREAT DETECTED in $scanPath (exit 2)"; $failed = $true }
+              default { Write-Host "::error::defender: scan of $scanPath did not complete (exit $scanExitCode); result is unknown, not clean"; $failed = $true }
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: windows-build-${{ github.run_attempt }}
+          # publish/ is already inside the zip, so upload the zip, logs and test results only.
+          path: |
+            artifacts/logs/
+            artifacts/test-results/
+            artifacts/package/
+          if-no-files-found: warn
+
+  linux-core-tests:
+    name: linux-core-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Clicky.Core.Tests
+        # Clicky.Core and its tests target plain net10.0 with no Windows references (ADR layout).
+        run: dotnet test tests/Clicky.Core.Tests -c Release --logger "trx;LogFileName=core-tests-linux.trx" --results-directory ../artifacts/test-results
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: linux-core-tests-${{ github.run_attempt }}
+          path: artifacts/test-results/
+          if-no-files-found: warn

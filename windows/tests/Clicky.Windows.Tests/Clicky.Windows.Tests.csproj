@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Replay end-to-end: runs the built Clicky.exe in replay mode and asserts on its JSON report (ADR 001 tracer item 4). -->
+  <PropertyGroup>
+    <!-- Same TFM as Clicky.Windows, so the build-order reference below passes NuGet's compatibility check. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit.v3" Version="3.1.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only for build order: the tests launch Clicky.exe as a separate process and never load its assembly. -->
+    <ProjectReference Include="..\..\src\Clicky.Windows\Clicky.Windows.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="ClickyExecutablePath" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../src/Clicky.Windows/bin/$(Configuration)/$(TargetFramework)/Clicky.exe'))" />
+    <AssemblyMetadata Include="RepositoryRootDirectory" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../..'))" />
+  </ItemGroup>
+</Project>

@@ -49,7 +49,7 @@ public sealed class ReplayManifestTests
     public async Task BadManifestExitsTwo()
     {
         string manifestPath = WriteTemporaryManifest("{ \"routes\": this is not valid json ]]");
-        ClickyProcessRun clickyProcessRun;
+        ClickyStartupFailureRun clickyProcessRun;
         try
         {
             clickyProcessRun = await ClickyReplayProcess.RunArgumentsAsync("--replay-manifest", manifestPath);

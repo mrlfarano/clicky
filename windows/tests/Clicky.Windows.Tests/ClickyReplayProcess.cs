@@ -7,8 +7,10 @@ namespace Clicky.Windows.Tests;
 
 internal sealed record ReplayRun(int ExitCode, JsonNode Report, string ProcessOutput);
 
-/// <summary>Used for runs that fail during startup (before any report is written), such as a bad manifest.</summary>
-internal sealed record ClickyProcessRun(int ExitCode, string ProcessOutput);
+/// <summary>Used for runs that fail during startup (before any report is written), such as a bad manifest.
+/// Distinct from ClickyProcessRun in ClickyProcessLauncher.cs, which carries the data directory the
+/// crash-reporting tests inspect.</summary>
+internal sealed record ClickyStartupFailureRun(int ExitCode, string ProcessOutput);
 
 /// <summary>
 /// Puts every test class that launches Clicky.exe into one xunit collection, so the runs are sequential.
@@ -47,7 +49,7 @@ internal static class ClickyReplayProcess
     /// Runs Clicky.exe with exactly the given arguments and no report expectations, for invocations that are
     /// expected to fail during startup (for example an invalid manifest), where no report is ever written.
     /// </summary>
-    public static async Task<ClickyProcessRun> RunArgumentsAsync(params string[] clickyArguments)
+    public static async Task<ClickyStartupFailureRun> RunArgumentsAsync(params string[] clickyArguments)
     {
         string reportPath = Path.Combine(Path.GetTempPath(), $"clicky-replay-report-{Guid.NewGuid():N}.json");
         var clickyProcessRun = await StartClickyAndWaitForExitAsync(
@@ -62,7 +64,7 @@ internal static class ClickyReplayProcess
         Assert.True(File.Exists(ClickyExecutablePath), $"Build Clicky.Windows first; not found: {ClickyExecutablePath}");
 
         string reportPath = Path.Combine(Path.GetTempPath(), $"clicky-replay-report-{Guid.NewGuid():N}.json");
-        ClickyProcessRun clickyProcessRun = await StartClickyAndWaitForExitAsync(
+        ClickyStartupFailureRun clickyProcessRun = await StartClickyAndWaitForExitAsync(
             [.. replayModeArguments, "--report", reportPath, .. extraArguments], replayModeDescription);
 
         Assert.True(File.Exists(reportPath), $"Clicky.exe {replayModeDescription} wrote no report. Output:\n{clickyProcessRun.ProcessOutput}");
@@ -71,7 +73,7 @@ internal static class ClickyReplayProcess
         return new ReplayRun(clickyProcessRun.ExitCode, report, clickyProcessRun.ProcessOutput);
     }
 
-    private static async Task<ClickyProcessRun> StartClickyAndWaitForExitAsync(string[] clickyArguments, string invocationDescription)
+    private static async Task<ClickyStartupFailureRun> StartClickyAndWaitForExitAsync(string[] clickyArguments, string invocationDescription)
     {
         var clickyStartInfo = new ProcessStartInfo(ClickyExecutablePath)
         {
@@ -103,7 +105,7 @@ internal static class ClickyReplayProcess
             }
         }
         string processOutput = await standardOutputText + await standardErrorText;
-        return new ClickyProcessRun(clickyProcess.ExitCode, processOutput);
+        return new ClickyStartupFailureRun(clickyProcess.ExitCode, processOutput);
     }
 
     private static string ReadAssemblyMetadata(string metadataKey) => typeof(ClickyReplayProcess).Assembly

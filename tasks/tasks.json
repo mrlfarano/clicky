@@ -498,9 +498,9 @@
         "Given error-no-text-cancels, error-with-partial-submits and empty-final-not-submitted, when run, then the suite asserts cancel, submit-partial and no-submit respectively."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/TranscriptFinalizeGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-14 part 2. 1.4 s grace, then 2.8 s and 2.4 s fallbacks, first one wins. Vector timings are exact; the wall-clock +/-100 ms tolerance applies only to the Replay in T-023.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/29",
+      "dev_notes": "Finalize machine: grace 1400/session 2800/default 2400 first-wins; end-of-turn+Terminate immediate-once; error-no-text cancels; partial submits; empty not submitted. 215 Core. Merged provider+manager transcript tracking (shortcut comment); T-023 wires it.",
       "qa_result": null
     },
     {
@@ -571,9 +571,9 @@
         "Given two captures, when run, then CaptureOptionsTests.D3DDeviceReused asserts one device instance."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/CaptureOptionsTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-15 part 2. Win10 yellow border on older builds is an accepted limitation. QA-matrix: ADR acceptance 7 on 1903 (overlay back within 250 ms) and Win11 (no border).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/30",
+      "dev_notes": "CaptureOptions.Decide(osBuild): borderless 20348+ only; overlay+panel same exclude-or-hide (panel seam ready for T-031); one D3D device (fake-factory tested). QA: real-machine borderless + 1903 overlay-return-250ms; GPU-loss no-recreate (pre-existing).",
       "qa_result": null
     },
     {
@@ -623,9 +623,9 @@
         "Given startup, when the client is created, then ClaudeClientReplayTests.WarmupHeadSent asserts one TLS warm-up HEAD."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/ClaudeClientReplayTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-16 part 2 (G2, G3). QA-matrix: panel screenshot with Opus selected after restart plus settings file.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/31",
+      "dev_notes": "ClaudeClient: effective-settings model (override honored; in-flight keeps original); TLS warm-up HEAD; connect retry exactly once; virtual-clock stall deadline; chat-http-529 -> fallback utterance + response_error + no history. Manifest per-route connectFailures. response_error properties await T-044.",
       "qa_result": null
     },
     {

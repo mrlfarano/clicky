@@ -18,6 +18,8 @@
   <ItemGroup>
     <!-- ObservableObject + [ObservableProperty] for CompanionCoordinator's reducer-driven state (audit G9, MIT). -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- The tray icon: a Shell_NotifyIconW wrapper with NOTIFYICON_VERSION_4 (T-031, audit row B1, MIT). -->
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.183" PrivateAssets="all" />
     <!-- WASAPI shared-mode mic capture + MMDeviceEnumerator/IMMNotificationClient (WS-13/T-020, audit row F1).
          NAudio is MIT; the choice over raw CsWin32 bindings is justified in NAudioMicrophoneCapture.cs.
@@ -52,5 +54,8 @@
     <!-- Seam 10: the system prompts are shared with the Mac app as files, not string literals. -->
     <None Include="..\..\..\shared\prompts\companion-voice-response.txt" Link="prompts\companion-voice-response.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\shared\prompts\onboarding-demo.txt" Link="prompts\onboarding-demo.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Tray icons, light and dark taskbar (audit B2). These are generated placeholders: the Mac's menu bar
+         triangle (MenuBarPanelManager.swift:76-108) at 16/20/24/32 px. Real brand icons replace them under the same names. -->
+    <None Update="Assets\clicky-tray-*.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

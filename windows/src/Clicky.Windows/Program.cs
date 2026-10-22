@@ -308,6 +308,13 @@ internal static class Program
         }
         ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}");
 
+        // The tray icon and panel (T-031) are live only, and are skipped under --debug-quit-after-ms too: that flag only
+        // exercises startup and the ordered shutdown, and a panel opening on CI runners would add nothing but noise.
+        if (options.DebugQuitAfter is null)
+        {
+            StartTrayIconAndPanel(application, effectiveUserSettings, overlayWindow, companionCoordinator, timeProvider);
+        }
+
         // shortcut: --debug-quit-after-ms is the only quit trigger until the tray's "Quit Clicky" lands (WS-18);
         // that menu item calls ShutDownInOrder too.
         if (options.DebugQuitAfter is TimeSpan debugQuitAfter)
@@ -315,6 +322,53 @@ internal static class Program
             await Task.Delay(debugQuitAfter, timeProvider);
             ShutDownInOrder(application, shortcutMonitor, companionCoordinator);
         }
+    }
+
+    /// <summary>
+    /// PNL-01, PNL-02 and PNL-07: the tray icon toggles the panel. The panel hides on deactivation, push-to-talk
+    /// or ×, following Core's <see cref="CompanionPanelVisibility"/> rules, and opens 0.3 s after launch while
+    /// setup is incomplete. The tray icon follows the taskbar theme (audit B2).
+    /// </summary>
+    private static void StartTrayIconAndPanel(
+        Application application,
+        CompanionSettings effectiveUserSettings,
+        CursorOverlayWindow overlayWindow,
+        CompanionCoordinator companionCoordinator,
+        TimeProvider timeProvider)
+    {
+        // The panel's mic-denied rules read the live permission. The first probe runs before the polling loop's
+        // first wait, so the launch decision below already sees it.
+        var microphonePermissionDetector = new MicrophonePermissionDetector(WindowsMicrophonePermissionProbe.ProbeMicrophonePermission, timeProvider);
+        _ = microphonePermissionDetector.StartPollingAsync(CancellationToken.None);
+        MicrophonePermissionState ReadMicrophonePermissionState() =>
+            microphonePermissionDetector.CurrentPermissionState ?? MicrophonePermissionState.Denied;
+
+        var panelWindow = new CompanionPanelWindow();
+        panelWindow.CreateHiddenWindowHandle();
+        var trayIcon = new ClickyTrayIcon();
+        // The Exit subscription removes the icon on every exit path, so no ghost icon is left (PNL-05).
+        application.Exit += (_, _) => trayIcon.Dispose();
+
+        var panelVisibility = new CompanionPanelVisibility(
+            showPanelWindow: () =>
+            {
+                panelWindow.SetStatus(CompanionPanelStatus.From(
+                    effectiveUserSettings.HasCompletedOnboarding,
+                    ReadMicrophonePermissionState() == MicrophonePermissionState.Granted,
+                    overlayWindow.IsVisible,
+                    companionCoordinator.VoiceState));
+                panelWindow.ShowAnchoredToTrayIcon(trayIcon);
+            },
+            hidePanelWindow: panelWindow.Hide,
+            readMicrophonePermissionState: ReadMicrophonePermissionState,
+            writeLogLine: ClickyLog.Write,
+            timeProvider: timeProvider);
+        trayIcon.Clicked += panelVisibility.HandleTrayIconClicked;
+        panelWindow.SettingChanged += trayIcon.HandleSettingChange;
+        panelWindow.Deactivated += (_, _) => panelVisibility.HidePanel(PanelHideReason.Deactivated);
+        panelWindow.CloseButtonClicked += () => panelVisibility.HidePanel(PanelHideReason.Close);
+        companionCoordinator.PanelDismissRequested += () => panelVisibility.HidePanel(PanelHideReason.PushToTalk);
+        _ = panelVisibility.ShowPanelOnLaunchIfSetupIncompleteAsync(effectiveUserSettings.HasCompletedOnboarding, CancellationToken.None);
     }
 
     /// <summary>

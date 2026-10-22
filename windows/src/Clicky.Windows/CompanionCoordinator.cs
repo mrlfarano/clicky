@@ -50,6 +50,9 @@ internal sealed partial class CompanionCoordinator(
     [ObservableProperty]
     private CompanionVoiceState voiceState;
 
+    /// <summary>The reducer's DismissPanel (a push-to-talk press, CompanionManager.swift:491-492); live mode hides the panel on it.</summary>
+    public event Action? PanelDismissRequested;
+
     public IReadOnlyList<VoiceStateTimelineEntry> VoiceStateTimeline => voiceStateTimeline;
 
     private long ElapsedTMs => (long)(timeProvider.GetUtcNow() - virtualClockOrigin).TotalMilliseconds;
@@ -203,7 +206,7 @@ internal sealed partial class CompanionCoordinator(
                 _ = ReportTransientHideElapsedAsync(scheduleTransientHide);
                 break;
             case CompanionSessionEffect.DismissPanel:
-                // No panel until WS-18; nothing to dismiss.
+                PanelDismissRequested?.Invoke();
                 break;
             case CompanionSessionEffect.CancelChatRequest or CompanionSessionEffect.ClearPointingTarget:
                 latestExchangeCancellation?.Cancel();

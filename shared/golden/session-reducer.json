@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "seam": "session-reducer",
-  "swiftAnchor": "leanring-buddy/CompanionManager.swift:430-726",
-  "description": "Seam 6. Each case starts from CompanionSessionState.Initial (plus input.initialHistory when present) and feeds input.events to CompanionSession.Reduce in order. Event types: shortcutPressed, shortcutReleased, recordingStarted, transcriptFinal {text}, responseReady {requestId, text}, ttsStarted, ttsEnded. expected.voiceStates and expected.effects have one entry per event (the state after it, and the effects it emitted, in order); expected.history is the conversation history after the last event. Effects are written as 'dismissPanel', 'cancelChatRequest <id>', 'stopTtsPlayback', 'clearPointingTarget', 'startRecording', 'stopRecording', 'startChatRequest <id> history=<count>', 'pointAtElement <x>,<y> <label>', 'speakResponse <text>' and 'analytics <event name>[: <content>]'. Parity spec PTT-02, PTT-03, CLA-07, AN-02.",
+  "swiftAnchor": "leanring-buddy/CompanionManager.swift:175-195, 430-756; leanring-buddy/CompanionPanelView.swift:128-130, 728-759",
+  "description": "Seam 6. Cases without a group start from CompanionSessionState.Initial (isClickyCursorEnabled true, overlay hidden, plus input.initialHistory when present) and feed input.events to CompanionSession.Reduce in order on a virtual clock. Event types: started {isClickyCursorEnabled, hasCompletedOnboarding, hasMicrophonePermission}, shortcutPressed, shortcutReleased, recordingStarted, transcriptFinal {text}, responseReady {requestId, text}, ttsStarted, ttsEnded, pointingFinished, and advance {ms}, which moves the clock and reduces a transientHideElapsed for every scheduleTransientHide timer that came due. expected.voiceStates and expected.effects have one entry per event (the state after it, and the effects it emitted, in order); expected.history is the conversation history after the last event. Effects are written as 'showOverlay', 'hideOverlay', 'scheduleTransientHide <id> <delay>ms', 'dismissPanel', 'cancelChatRequest <id>', 'stopTtsPlayback', 'clearPointingTarget', 'startRecording', 'stopRecording', 'startChatRequest <id> history=<count>', 'pointAtElement <x>,<y> <label>', 'speakResponse <text>' and 'analytics <event name>[: <content>]'. Cases in group panel-status feed input {hasCompletedOnboarding, hasMicrophonePermission, isOverlayVisible} with each voiceState to CompanionPanelStatus.From; expected.byVoiceState gives statusText and dotColor (a DS colour token) per voiceState, and expected.hintText the push-to-talk hint (null when the panel shows setup copy instead). Parity spec PTT-02, PTT-03, CLA-07, AN-02, TTS-02, ONB-03, PNL-06.",
   "cases": [
     {
       "id": "full-exchange-with-point",
@@ -342,6 +342,342 @@
           { "userTranscript": "earlier question", "assistantResponse": "earlier answer" },
           { "userTranscript": "second question", "assistantResponse": "second answer" }
         ]
+      }
+    },
+    {
+      "id": "persistent-shows-on-start",
+      "branch": "persistent-start",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:186-194, 733",
+      "input": {
+        "events": [
+          { "type": "started", "isClickyCursorEnabled": true, "hasCompletedOnboarding": true, "hasMicrophonePermission": true },
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "what is html" },
+          { "type": "responseReady", "requestId": 1, "text": "the skeleton of a web page. [POINT:none]" },
+          { "type": "ttsStarted" },
+          { "type": "ttsEnded" },
+          { "type": "advance", "ms": 5000 }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["idle", "processing", "listening", "processing", "processing", "processing", "responding", "idle", "idle"],
+        "effects": [
+          ["showOverlay"],
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: what is html", "startChatRequest 1 history=0"],
+          ["analytics ai_response_received: the skeleton of a web page.", "speakResponse the skeleton of a web page."],
+          [],
+          [],
+          []
+        ],
+        "history": [
+          { "userTranscript": "what is html", "assistantResponse": "the skeleton of a web page." }
+        ]
+      }
+    },
+    {
+      "id": "transient-hidden-on-start",
+      "branch": "transient-start",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:190, 449-459, 484-489, 732-756",
+      "input": {
+        "events": [
+          { "type": "started", "isClickyCursorEnabled": false, "hasCompletedOnboarding": true, "hasMicrophonePermission": true },
+          { "type": "shortcutPressed" },
+          { "type": "shortcutReleased" },
+          { "type": "advance", "ms": 1000 },
+          { "type": "shortcutPressed" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["idle", "processing", "idle", "idle", "processing"],
+        "effects": [
+          [],
+          ["showOverlay", "dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          ["analytics push_to_talk_released", "stopRecording", "scheduleTransientHide 1 1000ms"],
+          ["hideOverlay"],
+          ["showOverlay", "dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"]
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "not-onboarded-no-overlay-on-start",
+      "branch": "start-before-setup",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:186-194",
+      "input": {
+        "events": [
+          { "type": "started", "isClickyCursorEnabled": true, "hasCompletedOnboarding": false, "hasMicrophonePermission": true },
+          { "type": "shortcutPressed" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["idle", "processing"],
+        "effects": [
+          [],
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"]
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "transient-hide-after-tts-plus-1s",
+      "branch": "transient-hide-after-tts",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:721-723, 732-756",
+      "input": {
+        "events": [
+          { "type": "started", "isClickyCursorEnabled": false, "hasCompletedOnboarding": true, "hasMicrophonePermission": true },
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "what is html" },
+          { "type": "responseReady", "requestId": 1, "text": "the skeleton of a web page. [POINT:none]" },
+          { "type": "ttsStarted" },
+          { "type": "advance", "ms": 5000 },
+          { "type": "ttsEnded" },
+          { "type": "advance", "ms": 999 },
+          { "type": "advance", "ms": 1 }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["idle", "processing", "listening", "processing", "processing", "processing", "responding", "responding", "idle", "idle", "idle"],
+        "effects": [
+          [],
+          ["showOverlay", "dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: what is html", "startChatRequest 1 history=0"],
+          ["analytics ai_response_received: the skeleton of a web page.", "speakResponse the skeleton of a web page."],
+          [],
+          [],
+          ["scheduleTransientHide 1 1000ms"],
+          [],
+          ["hideOverlay"]
+        ],
+        "history": [
+          { "userTranscript": "what is html", "assistantResponse": "the skeleton of a web page." }
+        ]
+      }
+    },
+    {
+      "id": "transient-hide-waits-for-pointing",
+      "branch": "transient-hide-after-pointing",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:743-756",
+      "input": {
+        "events": [
+          { "type": "started", "isClickyCursorEnabled": false, "hasCompletedOnboarding": true, "hasMicrophonePermission": true },
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "where is save" },
+          { "type": "responseReady", "requestId": 1, "text": "click the save button. [POINT:100,200:save button]" },
+          { "type": "ttsStarted" },
+          { "type": "ttsEnded" },
+          { "type": "advance", "ms": 2000 },
+          { "type": "pointingFinished" },
+          { "type": "advance", "ms": 999 },
+          { "type": "advance", "ms": 1 }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["idle", "processing", "listening", "processing", "processing", "idle", "responding", "idle", "idle", "idle", "idle", "idle"],
+        "effects": [
+          [],
+          ["showOverlay", "dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: where is save", "startChatRequest 1 history=0"],
+          [
+            "pointAtElement 100,200 save button",
+            "analytics element_pointed: save button",
+            "analytics ai_response_received: click the save button.",
+            "speakResponse click the save button."
+          ],
+          [],
+          [],
+          [],
+          ["scheduleTransientHide 1 1000ms"],
+          [],
+          ["hideOverlay"]
+        ],
+        "history": [
+          { "userTranscript": "where is save", "assistantResponse": "click the save button." }
+        ]
+      }
+    },
+    {
+      "id": "transient-hide-cancelled-by-press",
+      "branch": "press-cancels-transient-hide",
+      "swiftAnchor": "leanring-buddy/CompanionManager.swift:449-459, 480-482, 732-756",
+      "description": "The press at 500 ms cancels hide 1; the tap's release schedules hide 2, and hide 1's timer firing at 1000 ms is ignored.",
+      "input": {
+        "events": [
+          { "type": "started", "isClickyCursorEnabled": false, "hasCompletedOnboarding": true, "hasMicrophonePermission": true },
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "shortcutReleased" },
+          { "type": "transcriptFinal", "text": "what is html" },
+          { "type": "responseReady", "requestId": 1, "text": "the skeleton of a web page. [POINT:none]" },
+          { "type": "ttsStarted" },
+          { "type": "ttsEnded" },
+          { "type": "advance", "ms": 500 },
+          { "type": "shortcutPressed" },
+          { "type": "shortcutReleased" },
+          { "type": "advance", "ms": 999 },
+          { "type": "advance", "ms": 1 }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["idle", "processing", "listening", "processing", "processing", "processing", "responding", "idle", "idle", "processing", "idle", "idle", "idle"],
+        "effects": [
+          [],
+          ["showOverlay", "dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          ["analytics push_to_talk_released", "stopRecording"],
+          ["analytics user_message_sent: what is html", "startChatRequest 1 history=0"],
+          ["analytics ai_response_received: the skeleton of a web page.", "speakResponse the skeleton of a web page."],
+          [],
+          ["scheduleTransientHide 1 1000ms"],
+          [],
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          ["analytics push_to_talk_released", "stopRecording", "scheduleTransientHide 2 1000ms"],
+          [],
+          ["hideOverlay"]
+        ],
+        "history": [
+          { "userTranscript": "what is html", "assistantResponse": "the skeleton of a web page." }
+        ]
+      }
+    },
+    {
+      "id": "panel-status-onboarded-mic-overlay-visible",
+      "group": "panel-status",
+      "branch": "status-by-voice-state",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:129-130, 728-759",
+      "input": { "hasCompletedOnboarding": true, "hasMicrophonePermission": true, "isOverlayVisible": true },
+      "expected": {
+        "hintText": "Hold Ctrl+Alt to talk.",
+        "byVoiceState": {
+          "idle": { "statusText": "Active", "dotColor": "success" },
+          "listening": { "statusText": "Listening", "dotColor": "blue400" },
+          "processing": { "statusText": "Processing", "dotColor": "blue400" },
+          "responding": { "statusText": "Responding", "dotColor": "blue400" }
+        }
+      }
+    },
+    {
+      "id": "panel-status-onboarded-mic-overlay-hidden",
+      "group": "panel-status",
+      "branch": "status-ready",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:129-130, 729-730, 746-747",
+      "input": { "hasCompletedOnboarding": true, "hasMicrophonePermission": true, "isOverlayVisible": false },
+      "expected": {
+        "hintText": "Hold Ctrl+Alt to talk.",
+        "byVoiceState": {
+          "idle": { "statusText": "Ready", "dotColor": "textTertiary" },
+          "listening": { "statusText": "Ready", "dotColor": "textTertiary" },
+          "processing": { "statusText": "Ready", "dotColor": "textTertiary" },
+          "responding": { "statusText": "Ready", "dotColor": "textTertiary" }
+        }
+      }
+    },
+    {
+      "id": "panel-status-onboarded-no-mic-overlay-visible",
+      "group": "panel-status",
+      "branch": "status-setup-dot-follows-overlay",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:728-745",
+      "input": { "hasCompletedOnboarding": true, "hasMicrophonePermission": false, "isOverlayVisible": true },
+      "expected": {
+        "hintText": null,
+        "byVoiceState": {
+          "idle": { "statusText": "Setup", "dotColor": "success" },
+          "listening": { "statusText": "Setup", "dotColor": "blue400" },
+          "processing": { "statusText": "Setup", "dotColor": "blue400" },
+          "responding": { "statusText": "Setup", "dotColor": "blue400" }
+        }
+      }
+    },
+    {
+      "id": "panel-status-onboarded-no-mic-overlay-hidden",
+      "group": "panel-status",
+      "branch": "status-setup",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:729-730, 743-745",
+      "input": { "hasCompletedOnboarding": true, "hasMicrophonePermission": false, "isOverlayVisible": false },
+      "expected": {
+        "hintText": null,
+        "byVoiceState": {
+          "idle": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "listening": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "processing": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "responding": { "statusText": "Setup", "dotColor": "textTertiary" }
+        }
+      }
+    },
+    {
+      "id": "panel-status-not-onboarded-mic-overlay-visible",
+      "group": "panel-status",
+      "branch": "status-setup-dot-follows-overlay",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:728-745",
+      "input": { "hasCompletedOnboarding": false, "hasMicrophonePermission": true, "isOverlayVisible": true },
+      "expected": {
+        "hintText": null,
+        "byVoiceState": {
+          "idle": { "statusText": "Setup", "dotColor": "success" },
+          "listening": { "statusText": "Setup", "dotColor": "blue400" },
+          "processing": { "statusText": "Setup", "dotColor": "blue400" },
+          "responding": { "statusText": "Setup", "dotColor": "blue400" }
+        }
+      }
+    },
+    {
+      "id": "panel-status-not-onboarded-mic-overlay-hidden",
+      "group": "panel-status",
+      "branch": "status-setup",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:729-730, 743-745",
+      "input": { "hasCompletedOnboarding": false, "hasMicrophonePermission": true, "isOverlayVisible": false },
+      "expected": {
+        "hintText": null,
+        "byVoiceState": {
+          "idle": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "listening": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "processing": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "responding": { "statusText": "Setup", "dotColor": "textTertiary" }
+        }
+      }
+    },
+    {
+      "id": "panel-status-not-onboarded-no-mic-overlay-visible",
+      "group": "panel-status",
+      "branch": "status-setup-dot-follows-overlay",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:728-745",
+      "input": { "hasCompletedOnboarding": false, "hasMicrophonePermission": false, "isOverlayVisible": true },
+      "expected": {
+        "hintText": null,
+        "byVoiceState": {
+          "idle": { "statusText": "Setup", "dotColor": "success" },
+          "listening": { "statusText": "Setup", "dotColor": "blue400" },
+          "processing": { "statusText": "Setup", "dotColor": "blue400" },
+          "responding": { "statusText": "Setup", "dotColor": "blue400" }
+        }
+      }
+    },
+    {
+      "id": "panel-status-not-onboarded-no-mic-overlay-hidden",
+      "group": "panel-status",
+      "branch": "status-setup",
+      "swiftAnchor": "leanring-buddy/CompanionPanelView.swift:729-730, 743-745",
+      "input": { "hasCompletedOnboarding": false, "hasMicrophonePermission": false, "isOverlayVisible": false },
+      "expected": {
+        "hintText": null,
+        "byVoiceState": {
+          "idle": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "listening": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "processing": { "statusText": "Setup", "dotColor": "textTertiary" },
+          "responding": { "statusText": "Setup", "dotColor": "textTertiary" }
+        }
       }
     }
   ]

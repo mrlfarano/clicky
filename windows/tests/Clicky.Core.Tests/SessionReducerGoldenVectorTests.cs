@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Clicky.Core.Tests;
@@ -7,8 +9,11 @@ namespace Clicky.Core.Tests;
 public sealed class SessionReducerGoldenVectorTests
 {
     private const string SeamName = "session-reducer";
+    private const string PanelStatusGroup = "panel-status";
 
-    public static TheoryData<string> CaseIds => GoldenVectors.CaseIds(SeamName);
+    public static TheoryData<string> CaseIds => CaseIdsInGroup(groupName: null);
+
+    public static TheoryData<string> PanelStatusCaseIds => CaseIdsInGroup(PanelStatusGroup);
 
     [Theory]
     [MemberData(nameof(CaseIds))]
@@ -24,14 +29,44 @@ public sealed class SessionReducerGoldenVectorTests
             sessionState = sessionState with { ConversationHistory = ReadConversationHistory(initialHistory) };
         }
 
+        // The virtual clock: ScheduleTransientHide arms a FakeTimeProvider timer, as the shell arms a real one,
+        // and an "advance" step moves the clock and then reduces whatever the timers reported.
+        var fakeTimeProvider = new FakeTimeProvider();
+        var elapsedTimerEvents = new Queue<CompanionSessionEvent>();
         var actualVoiceStates = new List<string>();
         var actualEffectsPerEvent = new List<List<string>>();
         foreach (JsonNode? sessionEventNode in input["events"]!.AsArray())
         {
-            CompanionSessionTransition transition = CompanionSession.Reduce(sessionState, ReadSessionEvent(sessionEventNode!));
-            sessionState = transition.State;
+            var effectsForThisStep = new List<string>();
+            if ((string)sessionEventNode!["type"]! == "advance")
+            {
+                fakeTimeProvider.Advance(TimeSpan.FromMilliseconds((int)sessionEventNode["ms"]!));
+                while (elapsedTimerEvents.TryDequeue(out CompanionSessionEvent? elapsedTimerEvent))
+                {
+                    ReduceOneEvent(elapsedTimerEvent);
+                }
+            }
+            else
+            {
+                ReduceOneEvent(ReadSessionEvent(sessionEventNode));
+            }
             actualVoiceStates.Add(sessionState.VoiceState.ToString().ToLowerInvariant());
-            actualEffectsPerEvent.Add(transition.Effects.Select(DescribeEffect).ToList());
+            actualEffectsPerEvent.Add(effectsForThisStep);
+
+            void ReduceOneEvent(CompanionSessionEvent sessionEvent)
+            {
+                CompanionSessionTransition transition = CompanionSession.Reduce(sessionState, sessionEvent);
+                sessionState = transition.State;
+                effectsForThisStep.AddRange(transition.Effects.Select(DescribeEffect));
+                foreach (CompanionSessionEffect.ScheduleTransientHide scheduleTransientHide in transition.Effects.OfType<CompanionSessionEffect.ScheduleTransientHide>())
+                {
+                    fakeTimeProvider.CreateTimer(
+                        _ => elapsedTimerEvents.Enqueue(new CompanionSessionEvent.TransientHideElapsed(scheduleTransientHide.TransientHideId)),
+                        state: null,
+                        scheduleTransientHide.Delay,
+                        Timeout.InfiniteTimeSpan);
+                }
+            }
         }
 
         Assert.Equal(ReadStrings(expected["voiceStates"]!), actualVoiceStates);
@@ -42,8 +77,31 @@ public sealed class SessionReducerGoldenVectorTests
         Assert.Equal(ReadConversationHistory(expected["history"]!.AsArray()), sessionState.ConversationHistory);
     }
 
-    // The case ids the T-010 acceptance criteria and parity spec PTT-02, PTT-03, CLA-07 and AN-02 name,
-    // plus one case per reducer branch, so neither can be dropped from the vector file unnoticed.
+    [Theory]
+    [MemberData(nameof(PanelStatusCaseIds))]
+    public void PanelStatusMatchesGoldenVector(string caseId)
+    {
+        JsonObject vectorCase = GoldenVectors.LoadCase(SeamName, caseId);
+        JsonNode input = vectorCase["input"]!;
+        JsonNode expected = vectorCase["expected"]!;
+
+        foreach (CompanionVoiceState voiceState in Enum.GetValues<CompanionVoiceState>())
+        {
+            CompanionPanelStatus panelStatus = CompanionPanelStatus.From(
+                (bool)input["hasCompletedOnboarding"]!,
+                (bool)input["hasMicrophonePermission"]!,
+                (bool)input["isOverlayVisible"]!,
+                voiceState);
+            JsonNode expectedForVoiceState = expected["byVoiceState"]![voiceState.ToString().ToLowerInvariant()]!;
+
+            Assert.Equal((string)expectedForVoiceState["statusText"]!, panelStatus.StatusText);
+            Assert.Equal((string)expectedForVoiceState["dotColor"]!, JsonNamingPolicy.CamelCase.ConvertName(panelStatus.StatusDotColor.ToString()));
+            Assert.Equal((string?)expected["hintText"], panelStatus.PushToTalkHintText);
+        }
+    }
+
+    // The case ids the T-010 and T-011 acceptance criteria and parity spec PTT-02, PTT-03, CLA-07, AN-02, TTS-02
+    // and ONB-03 name, plus one case per reducer branch, so neither can be dropped from the vector file unnoticed.
     private static readonly string[] AcceptanceCaseIds =
     [
         "repress-during-response-cancels",
@@ -53,6 +111,11 @@ public sealed class SessionReducerGoldenVectorTests
         "history-cap-10",
         "history-stores-spoken-text",
         "cancelled-not-stored",
+        "transient-hide-after-tts-plus-1s",
+        "transient-hide-waits-for-pointing",
+        "transient-hide-cancelled-by-press",
+        "persistent-shows-on-start",
+        "transient-hidden-on-start",
     ];
 
     private static readonly string[] ReducerBranchIds =
@@ -68,6 +131,16 @@ public sealed class SessionReducerGoldenVectorTests
         "history-strips-point-tag",
         "blank-spoken-text",
         "stale-response-ignored",
+        "persistent-start",
+        "transient-start",
+        "start-before-setup",
+        "transient-hide-after-tts",
+        "transient-hide-after-pointing",
+        "press-cancels-transient-hide",
+        "status-by-voice-state",
+        "status-ready",
+        "status-setup",
+        "status-setup-dot-follows-overlay",
     ];
 
     [Fact]
@@ -85,10 +158,33 @@ public sealed class SessionReducerGoldenVectorTests
         {
             Assert.Contains(reducerBranchId, branchIdsInFile);
         }
+
+        // PNL-06: the panel-status group covers onboarded × mic × overlay; each case checks every voiceState.
+        HashSet<string> panelStatusInputsInFile = allVectorCases
+            .Where(vectorCase => (string?)vectorCase["group"] == PanelStatusGroup)
+            .Select(vectorCase => vectorCase["input"]!)
+            .Select(input => $"{(bool)input["hasCompletedOnboarding"]!} {(bool)input["hasMicrophonePermission"]!} {(bool)input["isOverlayVisible"]!}")
+            .ToHashSet();
+        Assert.Equal(8, panelStatusInputsInFile.Count);
+    }
+
+    private static TheoryData<string> CaseIdsInGroup(string? groupName)
+    {
+        var caseIds = new TheoryData<string>();
+        foreach (JsonObject vectorCase in GoldenVectors.LoadAllCases(SeamName).Where(vectorCase => (string?)vectorCase["group"] == groupName))
+        {
+            caseIds.Add((string)vectorCase["id"]!);
+        }
+        return caseIds;
     }
 
     private static CompanionSessionEvent ReadSessionEvent(JsonNode sessionEventNode) => (string)sessionEventNode["type"]! switch
     {
+        "started" => new CompanionSessionEvent.Started(
+            (bool)sessionEventNode["isClickyCursorEnabled"]!,
+            (bool)sessionEventNode["hasCompletedOnboarding"]!,
+            (bool)sessionEventNode["hasMicrophonePermission"]!),
+        "pointingFinished" => new CompanionSessionEvent.PointingFinished(),
         "shortcutPressed" => new CompanionSessionEvent.ShortcutPressed(),
         "shortcutReleased" => new CompanionSessionEvent.ShortcutReleased(),
         "recordingStarted" => new CompanionSessionEvent.RecordingStarted(),
@@ -102,6 +198,11 @@ public sealed class SessionReducerGoldenVectorTests
     /// <summary>The compact effect notation the vector file's description documents.</summary>
     private static string DescribeEffect(CompanionSessionEffect sessionEffect) => sessionEffect switch
     {
+        CompanionSessionEffect.ShowOverlay => "showOverlay",
+        CompanionSessionEffect.HideOverlay => "hideOverlay",
+        CompanionSessionEffect.ScheduleTransientHide scheduleTransientHide => string.Create(
+            CultureInfo.InvariantCulture,
+            $"scheduleTransientHide {scheduleTransientHide.TransientHideId} {scheduleTransientHide.Delay.TotalMilliseconds}ms"),
         CompanionSessionEffect.DismissPanel => "dismissPanel",
         CompanionSessionEffect.CancelChatRequest cancelChatRequest => $"cancelChatRequest {cancelChatRequest.ChatRequestId}",
         CompanionSessionEffect.StopTtsPlayback => "stopTtsPlayback",

@@ -1,0 +1,5 @@
+{
+  "status": 402,
+  "headers": { "content-type": "application/json" },
+  "body": "{\"detail\":{\"status\":\"quota_exceeded\",\"message\":\"This request exceeds your quota. You have 0 credits remaining.\"}}"
+}

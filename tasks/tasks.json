@@ -356,9 +356,9 @@
         "Given more than 5 crash files, when a new crash is written, then CrashReportingTests.KeepsNewestFive asserts 5 remain, and the log rolls at 5 x 1 MB."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/CrashReportingTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-11. Decision: no Sentry (would send exception messages embedding Worker response bodies; new privacy surface). Native crashes go to WER only (accepted). 'Report a problem' button lands in T-033. Reads CLICKY_DATA_DIR; reuse the data-dir resolver from T-017/T-018 if already merged.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/6",
+      "dev_notes": "Merged after CI green on PR #6 (squash f8d91a1). Program.cs conflict with T-013 resolved: VelopackApp.Build().Run() stays literal first statement, crash handlers immediately after (Velopack may exit process for install hooks before our code runs). MiniDumpWriteDump(MiniDumpNormal) from AppDomain+Dispatcher handlers, write-once, UTC dmp+txt under crashes dir; rolling 1MB/5-file log; CLICKY_DATA_DIR override; --debug-crash real unhandled exception on dedicated thread. Privacy fix: TracerInteractionRunner logged full spoken text, now N chars. 104/104 post-resolution. Deviations: hand DllImport (CsWin32 PInvoke005 for AnyCPU); --debug-crash uses inert replay endpoint; dump verified MDMP magic locally. Two dev bugs caught by own tests (crash files cwd vs crashes dir; roll-check on missing file).",
       "qa_result": null
     },
     {

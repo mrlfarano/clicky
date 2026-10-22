@@ -40,37 +40,40 @@ internal sealed class InMemoryAnalyticsSink : IAnalyticsSink
 }
 
 /// <summary>
-/// Where spoken text goes to become audio: the real implementation (T-029, WS-17) POSTs the text to the
-/// Worker's /tts route and plays the returned MP3 through WASAPI. This stub exists so the request side of
-/// that pipeline can be observed in replay: it records the text as a report ttsRequests entry and never
-/// opens an audio device, which is what keeps replay runs silent and CI-safe.
+/// Where spoken text goes to become audio: the real implementation (<see cref="WorkerTextToSpeechSink"/>, T-029)
+/// POSTs the text to the Worker's /tts route and returns the whole MP3, which the coordinator then plays through
+/// an <see cref="IAudioOutput"/>. Every implementation records the text as a report ttsRequests entry.
 /// </summary>
 internal interface ITextToSpeechSink
 {
-    Task SpeakAsync(string spokenText, CancellationToken cancellationToken);
+    /// <summary>Returns the complete MP3 for <paramref name="spokenText"/>; throws when /tts answers non-2xx.</summary>
+    Task<byte[]> DownloadSpeechAsync(string spokenText, CancellationToken cancellationToken);
 
     /// <summary>The texts this sink was asked to speak, in order; the report copies these as ttsRequests.</summary>
     IReadOnlyList<TtsRequestReport> RecordedRequests { get; }
 }
 
-/// <summary>The in-memory TTS sink (T-002 stub): records each speak request, plays nothing.</summary>
+/// <summary>
+/// The in-memory TTS sink (T-002 stub): records each speak request and returns an empty MP3, which plays as
+/// instant silence. A replay whose manifest maps no /tts route (a plain --replay &lt;fixture.sse&gt;) uses it.
+/// </summary>
 internal sealed class InMemoryTextToSpeechSink : ITextToSpeechSink
 {
     public List<TtsRequestReport> RecordedRequests { get; } = [];
 
     IReadOnlyList<TtsRequestReport> ITextToSpeechSink.RecordedRequests => RecordedRequests;
 
-    public Task SpeakAsync(string spokenText, CancellationToken cancellationToken)
+    public Task<byte[]> DownloadSpeechAsync(string spokenText, CancellationToken cancellationToken)
     {
         RecordedRequests.Add(new TtsRequestReport(spokenText));
-        return Task.CompletedTask;
+        return Task.FromResult<byte[]>([]);
     }
 }
 
 /// <summary>
 /// Where an utterance goes when TTS failed and the system voice must speak it instead (parity spec TTS-03).
-/// The real implementation (T-029) uses System.Speech; this stub records the utterance as a report
-/// fallbackUtterances entry without synthesizing any audio.
+/// The real implementation (<see cref="SystemVoiceFallbackSpeechSink"/>, T-029) uses System.Speech; this stub,
+/// which every replay uses, records the utterance as a report fallbackUtterances entry without synthesizing audio.
 /// </summary>
 internal interface IFallbackSpeechSink
 {

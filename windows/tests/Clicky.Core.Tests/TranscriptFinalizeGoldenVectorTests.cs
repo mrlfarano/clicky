@@ -20,24 +20,36 @@ public sealed class TranscriptFinalizeGoldenVectorTests
         JsonNode expected = vectorCase["expected"]!;
         bool isProviderStalled = (bool?)input["stalledProvider"] ?? false;
 
-        // The virtual clock: ScheduleDeadline arms a FakeTimeProvider timer, as the shell arms a real one, and its
-        // callback reduces DeadlineElapsed straight away so the finish time is read off the clock.
+        // The virtual clock: ScheduleDeadline arms a deadline the test tracks itself and reduces DeadlineElapsed
+        // at the exact ms the clock crosses it. The earlier CreateTimer-on-FakeTimeProvider form lost callbacks
+        // under load on CI (callbacks are queued, so a busy thread pool from the parallel WPF process tests
+        // delivered them after the effects bucket was captured) — tracked deadlines are deterministic everywhere.
         var fakeTimeProvider = new FakeTimeProvider();
         DateTimeOffset clockStartTime = fakeTimeProvider.GetUtcNow();
         TranscriptFinalizeState finalizeState = TranscriptFinalizeState.Initial;
         var finishedAtMilliseconds = new List<double>();
         var actualEffectsPerEvent = new List<List<string>>();
-        // Timers fire during a later advance step, so their effects belong to whichever step is current then.
+        // A deadline fires during whichever advance step crosses its due time, so its effects belong to that step.
         List<string> effectsForCurrentStep = [];
+        var armedDeadlineDueTimes = new List<(TranscriptFinalizeDeadline Deadline, DateTimeOffset DueAt)>();
         foreach (JsonNode? finalizeEventNode in input["events"]!.AsArray())
         {
             effectsForCurrentStep = [];
             if ((string)finalizeEventNode!["type"]! == "advance")
             {
-                // FakeTimeProvider runs due callbacks at the end of an Advance, so step 1 ms at a time to finish at the due time.
+                // Step 1 ms at a time so a deadline fires at its exact due time, not the end of a coarse jump.
                 for (int advancedMilliseconds = 0; advancedMilliseconds < (int)finalizeEventNode["ms"]!; advancedMilliseconds++)
                 {
                     fakeTimeProvider.Advance(TimeSpan.FromMilliseconds(1));
+                    // Copy the armed list: reducing a deadline can schedule another (e.g. grace -> fallback chain).
+                    foreach ((TranscriptFinalizeDeadline armedDeadline, DateTimeOffset dueAt) in armedDeadlineDueTimes.ToList())
+                    {
+                        if (fakeTimeProvider.GetUtcNow() >= dueAt)
+                        {
+                            armedDeadlineDueTimes.Remove((armedDeadline, dueAt));
+                            ReduceOneEvent(new TranscriptFinalizeEvent.DeadlineElapsed(armedDeadline));
+                        }
+                    }
                 }
             }
             else
@@ -62,11 +74,7 @@ public sealed class TranscriptFinalizeGoldenVectorTests
                 {
                     continue;
                 }
-                fakeTimeProvider.CreateTimer(
-                    _ => ReduceOneEvent(new TranscriptFinalizeEvent.DeadlineElapsed(scheduleDeadline.Deadline)),
-                    state: null,
-                    scheduleDeadline.Delay,
-                    Timeout.InfiniteTimeSpan);
+                armedDeadlineDueTimes.Add((scheduleDeadline.Deadline, fakeTimeProvider.GetUtcNow() + scheduleDeadline.Delay));
             }
         }
 

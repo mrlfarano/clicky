@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -8,16 +9,26 @@ namespace Clicky.Windows;
 /// Stands in for the network under --replay and --replay-manifest (ADR 001 tracer item 4): the manifest
 /// maps Worker routes to recorded responses, so the app reads them through the same HttpClient →
 /// StreamReader path as a live response. CI needs no keys and no network. A route missing from the
-/// manifest throws instead of answering, so replay can never fall back to the live Worker.
+/// manifest throws instead of answering, so replay can never fall back to the live Worker. Every request is
+/// logged first, answered or not, and a route's connectFailures fail its first attempts like a refused connect.
 /// </summary>
 internal sealed class ReplayHttpMessageHandler(
     ReplayManifest replayManifest,
     TimeSpan delayBeforeEachSseEvent,
     TimeProvider timeProvider) : HttpMessageHandler
 {
+    private readonly ConcurrentDictionary<string, int> attemptCountsByRoutePath = new();
+
+    // Thread-safe, because the warm-up HEAD can arrive off the dispatcher.
+    private readonly ConcurrentQueue<HttpRequestReport> recordedRequests = new();
+
+    /// <summary>Every request received so far, in arrival order; the report copies these as httpRequests.</summary>
+    public IReadOnlyCollection<HttpRequestReport> RecordedRequests => recordedRequests;
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         string requestPath = request.RequestUri?.AbsolutePath ?? "/";
+        recordedRequests.Enqueue(new HttpRequestReport(request.Method.Method, requestPath));
         ReplayManifestRoute? manifestRoute = replayManifest.FindRouteFor(requestPath);
         if (manifestRoute is null)
         {
@@ -26,6 +37,12 @@ internal sealed class ReplayHttpMessageHandler(
             // attempt would instead surface as a DNS failure for the reserved replay.clicky.invalid host.
             throw new InvalidOperationException(
                 $"replay manifest has no route for '{requestPath}'; replay fails closed and never opens a live connection.");
+        }
+        int attemptNumber = attemptCountsByRoutePath.AddOrUpdate(requestPath, 1, (_, previousAttemptCount) => previousAttemptCount + 1);
+        if (attemptNumber <= manifestRoute.ConnectFailures)
+        {
+            // The same error SocketsHttpHandler raises for a refused or dropped connect, so ClaudeClient's retry sees it.
+            throw new HttpRequestException(HttpRequestError.ConnectionError, $"replay: simulated connect failure {attemptNumber} of {manifestRoute.ConnectFailures} for '{requestPath}'");
         }
 
         var replayResponse = new HttpResponseMessage((HttpStatusCode)manifestRoute.Status) { RequestMessage = request };

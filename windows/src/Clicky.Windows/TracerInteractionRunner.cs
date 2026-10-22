@@ -17,10 +17,9 @@ namespace Clicky.Windows;
 internal sealed class TracerInteractionRunner(
     ClickyCommandLineOptions options,
     string systemPrompt,
-    string claudeModel,
     CompanionSettings effectiveUserSettings,
-    HttpClient workerHttpClient,
-    Uri chatEndpoint,
+    ClaudeClient claudeClient,
+    IReadOnlyCollection<HttpRequestReport> replayHttpRequests,
     CursorOverlayWindow overlayWindow,
     MonitorScreenCapturer screenCapturer,
     IAnalyticsSink analyticsSink,
@@ -96,6 +95,7 @@ internal sealed class TracerInteractionRunner(
         report.AnalyticsEvents.AddRange(analyticsSink.RecordedEvents);
         report.TtsRequests.AddRange(textToSpeechSink.RecordedRequests);
         report.FallbackUtterances.AddRange(fallbackSpeechSink.RecordedUtterances);
+        report.HttpRequests.AddRange(replayHttpRequests);
     }
 
     private async Task<string> CaptureSendAndStreamAsync(TracerRunReport report, string transcript, long submitTMs, CancellationToken cancellationToken)
@@ -119,11 +119,10 @@ internal sealed class TracerInteractionRunner(
         List<(LabeledScreenshot LabeledScreenshot, PixelSize ScreenshotSize)> capturedScreenshots =
             await CaptureLabeledScreenshotsAsync(monitors, capturePlan, report, cancellationToken);
 
-        JsonObject requestBody = ClaudeRequestBuilder.BuildStreamingMessagesBody(
-            // claudeModel is the effective user-settings model: loaded from the data-directory
-            // settings.json (ONB-04/CLA-08) with its claude-sonnet-4-6 default, or a
-            // --settings-override value when a parity scenario pins it.
-            claudeModel,
+        // The client's model is the effective user-settings model: loaded from the data-directory settings.json
+        // (ONB-04/CLA-08) with its claude-sonnet-4-6 default, or a --settings-override value when a parity
+        // scenario pins it. Building the body here fixes this exchange's model (CLA-08: in flight keeps it).
+        JsonObject requestBody = claudeClient.BuildStreamingRequestBody(
             systemPrompt,
             capturedScreenshots.Select(capturedScreenshot => capturedScreenshot.LabeledScreenshot).ToList(),
             // shortcut: the coordinator does not hand the reducer's history down yet, so every request is a
@@ -237,34 +236,16 @@ internal sealed class TracerInteractionRunner(
         return capturedScreenshots;
     }
 
-    /// <summary>POSTs to /chat and reads the SSE stream line by line as it arrives (audit G1), updating the bubble per delta.</summary>
+    /// <summary>Streams the /chat reply line by line as it arrives (audit G1), updating the bubble per delta.</summary>
     private async Task<string> StreamChatResponseIntoBubbleAsync(JsonObject requestBody, TracerRunReport report, CancellationToken cancellationToken)
     {
-        string requestJson = requestBody.ToJsonString();
-        using var chatRequest = new HttpRequestMessage(HttpMethod.Post, chatEndpoint)
-        {
-            Content = new StringContent(requestJson, Encoding.UTF8, "application/json"),
-        };
-        ClickyLog.Write($"chat request: POST {chatEndpoint} ({requestJson.Length} chars)");
-
-        // ResponseHeadersRead returns as soon as headers arrive; otherwise HttpClient buffers the whole stream.
-        using HttpResponseMessage chatResponse = await workerHttpClient.SendAsync(chatRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (!chatResponse.IsSuccessStatusCode)
-        {
-            string errorBody = await chatResponse.Content.ReadAsStringAsync(cancellationToken);
-            // Same message shape as ClaudeAPI.swift:166-178.
-            throw new HttpRequestException($"API Error ({(int)chatResponse.StatusCode}): {errorBody}");
-        }
-
-        await using Stream responseStream = await chatResponse.Content.ReadAsStreamAsync(cancellationToken);
-        using var responseReader = new StreamReader(responseStream, Encoding.UTF8);
         await using StreamWriter? recordWriter = options.RecordFixturePath is string recordFixturePath
             ? new StreamWriter(recordFixturePath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { NewLine = "\n" }
             : null;
 
         Stopwatch? sinceFirstEvent = null;
         string accumulatedResponseText = "";
-        while (await responseReader.ReadLineAsync(cancellationToken) is string sseLine)
+        await claudeClient.StreamResponseLinesAsync(requestBody, async sseLine =>
         {
             sinceFirstEvent ??= Stopwatch.StartNew();
             long eventTMs = sinceFirstEvent.ElapsedMilliseconds;
@@ -277,11 +258,11 @@ internal sealed class TracerInteractionRunner(
             SseLineParseResult parsedLine = SseLineParser.ParseLine(sseLine);
             if (parsedLine.Kind == SseLineKind.EndOfStream)
             {
-                break;
+                return false;
             }
             if (parsedLine.Kind != SseLineKind.TextDelta)
             {
-                continue;
+                return true;
             }
 
             accumulatedResponseText += parsedLine.TextDelta;
@@ -292,7 +273,8 @@ internal sealed class TracerInteractionRunner(
                 await overlayWindow.Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.Render, cancellationToken);
                 report.DisplayTimeline[^1] = report.DisplayTimeline[^1] with { TMs = sinceFirstEvent.ElapsedMilliseconds };
             }
-        }
+            return true;
+        }, cancellationToken);
 
         if (sinceFirstEvent is not null)
         {

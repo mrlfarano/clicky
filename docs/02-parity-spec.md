@@ -76,6 +76,8 @@ Rules:
 | `voiceStateTimeline[] {tMs, state}` | 6 | `idle/listening/processing/responding` changes |
 | `analyticsEvents[] {name, properties}` | 6 | Events sent to the analytics sink (stubbed in replay, so nothing reaches PostHog) |
 | `ttsRequests[]`, `fallbackUtterances[]` | 6 | `/tts` bodies sent, and system-voice fallback strings spoken |
+| `conversationHistory[] {userTranscript, assistantResponse}` | 6 | The reducer's history when the report was written (CLA-06) |
+| `httpRequests[] {method, path}` | 6 | Every request the replay handler received, answered or not: the TLS warm-up `HEAD` and each `/chat` attempt (G2, G3) |
 
 ---
 

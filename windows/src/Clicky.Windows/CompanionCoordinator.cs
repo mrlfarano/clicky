@@ -19,6 +19,7 @@ internal sealed partial class CompanionCoordinator(
     TimeProvider timeProvider,
     IAnalyticsSink analyticsSink,
     ITextToSpeechSink textToSpeechSink,
+    IFallbackSpeechSink fallbackSpeechSink,
     CompanionVoiceStateReporter voiceStateReporter) : ObservableObject
 {
     private readonly Queue<(CompanionSessionEvent SessionEvent, long EventTMs)> pendingSessionEvents = new();
@@ -223,6 +224,12 @@ internal sealed partial class CompanionCoordinator(
             case CompanionSessionEffect.SpeakResponse speakResponse:
                 _ = SpeakResponseAsync(speakResponse.SpokenText, latestExchangeCancellation!.Token);
                 break;
+            case CompanionSessionEffect.SpeakFallbackUtterance speakFallbackUtterance:
+                // shortcut: fire-and-forget like NSSpeechSynthesizer.startSpeaking; the stub sink cannot fail, and
+                // the real system-voice sink (T-029) must log its own failures.
+                _ = fallbackSpeechSink.SpeakFallbackUtteranceAsync(speakFallbackUtterance.Utterance, CancellationToken.None);
+                Dispatch(new CompanionSessionEvent.TtsEnded(), currentEventTMs);
+                break;
             case CompanionSessionEffect.TrackAnalyticsEvent trackAnalyticsEvent:
                 // shortcut: no event properties until the AN-01 catalogue maps EventContent to them (T-044).
                 analyticsSink.TrackEvent(trackAnalyticsEvent.EventName);
@@ -244,6 +251,11 @@ internal sealed partial class CompanionCoordinator(
                 Dispatch(new CompanionSessionEvent.ResponseReady(startChatRequest.ChatRequestId, responseText), ElapsedTMs);
                 // The report carries the point, so the exchange ends when the pointing the response asked for has.
                 await latestPointingTask;
+            }
+            else
+            {
+                // The runner recorded why the exchange failed; the reducer decides what the failure does (CLA-06).
+                Dispatch(new CompanionSessionEvent.ResponseFailed(startChatRequest.ChatRequestId, report.Error!), ElapsedTMs);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -283,6 +295,7 @@ internal sealed partial class CompanionCoordinator(
     private void WriteReport(TracerRunReport report)
     {
         report.VoiceStateTimeline.AddRange(voiceStateTimeline);
+        report.ConversationHistory.AddRange(sessionState.ConversationHistory);
         interactionRunner.WriteReport(report);
     }
 }

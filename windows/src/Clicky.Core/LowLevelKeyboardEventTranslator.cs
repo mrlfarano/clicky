@@ -6,7 +6,8 @@ public readonly record struct LowLevelKeyboardEvent(uint VirtualKeyCode, uint Sc
 /// <summary>
 /// Turns raw WH_KEYBOARD_LL events into neutral key events for <see cref="PushToTalkDetector"/>
 /// (ADR 001 tracer item 1). This is where the Windows keyboard rules live: only the left Ctrl and left
-/// Alt keys count, and the fake left Ctrl that AltGr injects is dropped (audit C1, risk 2).
+/// Alt keys count, either Shift key counts (PTT-04), and the fake left Ctrl that AltGr injects is
+/// dropped (audit C1, risk 2).
 /// </summary>
 public sealed class LowLevelKeyboardEventTranslator
 {
@@ -83,7 +84,9 @@ public sealed class LowLevelKeyboardEventTranslator
         {
             modifiers |= NeutralModifierKeys.Alt;
         }
-        // shortcut: either Shift key counts; parity spec PTT-04 leaves right Shift to 03-plan, revisit there.
+        // Either Shift key counts (decision PTT-04): macOS's .shift flag is side-agnostic, and unlike
+        // Ctrl/Alt there is no AltGr hazard on the Shift keys, so splitting Shift by side would add no
+        // protection while making the Shift shortcuts harder to press.
         if (isLeftShiftDown || isRightShiftDown)
         {
             modifiers |= NeutralModifierKeys.Shift;

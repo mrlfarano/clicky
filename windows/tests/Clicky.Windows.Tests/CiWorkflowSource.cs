@@ -17,18 +17,38 @@ internal static class CiWorkflowSource
     /// <summary>Returns the full text (name line, comments, env and run block) of one windows-build step.</summary>
     public static string WindowsBuildStep(string stepName)
     {
+        List<string> stepBlocks = ReadWindowsBuildStepBlocks();
+
+        string? matchedStepBlock = stepBlocks.FirstOrDefault(stepBlock =>
+            FirstLineOf(stepBlock) == $"{StepListItemPrefix}name: {stepName}");
+        Assert.True(matchedStepBlock is not null, $"The windows-build job in ci.yml has no step named '{stepName}'.");
+        return matchedStepBlock!;
+    }
+
+    /// <summary>
+    /// The zero-based position of one windows-build step in the job's step list, for order-sensitive
+    /// assertions (the installed-replay step, for example, must come after the Package step that
+    /// builds the Setup.exe it installs).
+    /// </summary>
+    public static int WindowsBuildStepIndex(string stepName)
+    {
+        List<string> stepBlocks = ReadWindowsBuildStepBlocks();
+
+        int matchedStepBlockIndex = stepBlocks.FindIndex(stepBlock =>
+            FirstLineOf(stepBlock) == $"{StepListItemPrefix}name: {stepName}");
+        Assert.True(matchedStepBlockIndex >= 0, $"The windows-build job in ci.yml has no step named '{stepName}'.");
+        return matchedStepBlockIndex;
+    }
+
+    private static List<string> ReadWindowsBuildStepBlocks()
+    {
         string[] workflowLines = File.ReadAllLines(Path.Combine(
             ClickyReplayProcess.RepositoryRootDirectory, ".github", "workflows", "ci.yml"));
 
         int windowsBuildJobStartLineIndex = Array.FindIndex(workflowLines, line => line == WindowsBuildJobKeyLine);
         Assert.True(windowsBuildJobStartLineIndex >= 0, "ci.yml has no 'windows-build' job.");
 
-        List<string> stepBlocks = CollectWindowsBuildStepBlocks(workflowLines, windowsBuildJobStartLineIndex);
-
-        string? matchedStepBlock = stepBlocks.FirstOrDefault(stepBlock =>
-            FirstLineOf(stepBlock) == $"{StepListItemPrefix}name: {stepName}");
-        Assert.True(matchedStepBlock is not null, $"The windows-build job in ci.yml has no step named '{stepName}'.");
-        return matchedStepBlock!;
+        return CollectWindowsBuildStepBlocks(workflowLines, windowsBuildJobStartLineIndex);
     }
 
     private static List<string> CollectWindowsBuildStepBlocks(string[] workflowLines, int jobStartLineIndex)

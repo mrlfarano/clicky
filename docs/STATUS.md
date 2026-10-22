@@ -7,7 +7,7 @@ Last updated: 2026-10-22 — PM
 
 ## Current phase
 
-**Phase 6 — Development. Wave 1 complete (7/7). Wave 2: T-018 [#8](https://github.com/mrlfarano/clicky/pull/8), T-014 [#9](https://github.com/mrlfarano/clicky/pull/9), T-020 [#10](https://github.com/mrlfarano/clicky/pull/10), T-002 [#11](https://github.com/mrlfarano/clicky/pull/11), T-004 [#12](https://github.com/mrlfarano/clicky/pull/12)+[#13](https://github.com/mrlfarano/clicky/pull/13) merged; T-007 completion in flight. Suite at last green merge: 133/133 (93 Core + 40 Windows). Blocked on macOS: T-008, T-009. 12 of 44 tasks done.
+**Phase 6 — Development. Wave 1 complete (7/7). Wave 2 COMPLETE (7/7): T-018 [#8](https://github.com/mrlfarano/clicky/pull/8), T-014 [#9](https://github.com/mrlfarano/clicky/pull/9), T-020 [#10](https://github.com/mrlfarano/clicky/pull/10), T-002 [#11](https://github.com/mrlfarano/clicky/pull/11), T-004 [#12](https://github.com/mrlfarano/clicky/pull/12)+[#13](https://github.com/mrlfarano/clicky/pull/13), T-007 [#14](https://github.com/mrlfarano/clicky/pull/14). **13 of 44 tasks done** (T-008/T-009 blocked on macOS). Suite at last green merge: 93 Core + 44 Windows + 1 designed skip. Next wave (per `depends_on`, all now unblocked): T-005, T-010, T-011, T-012, T-021, T-022+ — dispatch via `claude -p` until ZCode agents return 2026-10-27.
 
 ### Incidents & hardenings (2026-10-22)
 
@@ -51,4 +51,4 @@ Last updated: 2026-10-22 — PM
 
 ## Next action
 
-T-007 completion (claude -p Opus) running in its worktree — on return: PM verifies (clean rebuild, bounded test run), PR, all-green gate, merge, record (bookkeeping rides in the next PR; direct pushes to the integration branch are blocked by protection). Then wave 3 per `depends_on`. ZCode agents return 2026-10-27; until then dev tasks run via `claude -p`. Phase 7 blind QA needs interactive-VM access — owner should provision or accept a manual-QA session.
+Dispatch wave 3 (T-005, T-010, T-011, T-012, T-021, … per `depends_on`) via `claude -p` (worktree cwd + `--add-dir` + scoped allowedTools; ZCode agents return 2026-10-27). Per-task loop: worktree from current head → implement per ACs → clean rebuild + bounded test run → PR (carries any local bookkeeping commits) → strict all-green gate → squash merge → record in tasks.json. Watch for the GitHub Actions ghost-jobs glitch seen on PR #14 (pull_request run loses job conclusions while run-level says success; rerun-failed-jobs is 403 on a success run — the fix is an empty-commit retrigger). Phase 7 blind QA needs interactive-VM access — owner should provision or accept a manual-QA session; the T-007 live smoke test (CLICKY_RUN_INTERACTIVE_SMOKE=1) also waits on it.

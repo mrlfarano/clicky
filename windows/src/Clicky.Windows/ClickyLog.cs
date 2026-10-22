@@ -31,7 +31,12 @@ internal static class ClickyLog
         lock (WriteLock)
         {
             string logFilePath = ResolveCurrentLogFilePathLocked(out bool logRolledWithThisWrite);
-            File.AppendAllText(logFilePath, timestampedLine + Environment.NewLine);
+            // Shared with other writers and readers: a second instance logs its quiet exit into the running
+            // instance's file (T-030), and File.AppendAllText would fail there with a sharing violation.
+            using (var logFileWriter = new StreamWriter(new FileStream(logFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite)))
+            {
+                logFileWriter.WriteLine(timestampedLine);
+            }
             if (logRolledWithThisWrite)
             {
                 // Prune after the append so the fresh file is on disk and counted among the kept five.

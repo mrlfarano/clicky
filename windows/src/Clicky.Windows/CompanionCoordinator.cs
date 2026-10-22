@@ -59,6 +59,23 @@ internal sealed partial class CompanionCoordinator(
         overlayWindow.Dispatcher.InvokeAsync(() => Dispatch(sessionEvent, ElapsedTMs)).Task;
 
     /// <summary>
+    /// PNL-05's stop path after the hook is gone, in CompanionManager.swift:290-296's order: dictation
+    /// cancelled, overlay hidden, in-flight work cancelled. Each step logs one line; ShutdownTests asserts the order.
+    /// </summary>
+    public void StopForShutdown()
+    {
+        overlayWindow.Dispatcher.VerifyAccess();
+        // shortcut: recording is a stub with no capture to stop, so cancelling dictation only drops the phase;
+        // stop the mic pipeline here once WS-13 wires it into the coordinator.
+        sessionState = sessionState with { DictationPhase = CompanionDictationPhase.None };
+        ClickyLog.Write("shutdown: dictation cancelled");
+        overlayWindow.Hide();
+        ClickyLog.Write("shutdown: overlay hidden");
+        latestExchangeCancellation?.Cancel();
+        ClickyLog.Write("shutdown: in-flight work cancelled");
+    }
+
+    /// <summary>
     /// The replay run: the tracer prompt is submitted at tMs 0, the --script events are delivered at their
     /// times on the injected clock, and the report is written once nothing is left in flight.
     /// </summary>

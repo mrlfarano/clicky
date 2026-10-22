@@ -117,6 +117,7 @@ internal sealed class GlobalPushToTalkShortcutMonitor
 
     private readonly TimeProvider timeProvider;
     private HwndSource? rawInputWindow;
+    private Dispatcher? hookThreadDispatcher;
 
     // A one-shot TimeProvider timer (T-001 left this conversion to T-007) whose tick is marshalled back
     // onto the hook thread's dispatcher: reinstalling the hook from any other thread would leave hook
@@ -179,6 +180,21 @@ internal sealed class GlobalPushToTalkShortcutMonitor
     }
 
     /// <summary>
+    /// Removes the hook and ends the hook thread and the translation worker (PNL-05's first stop step,
+    /// GlobalPushToTalkShortcutMonitor.swift stop()). The unhook runs on the hook thread, which owns it.
+    /// </summary>
+    public void Stop()
+    {
+        hookThreadDispatcher!.Invoke(() =>
+        {
+            hookLivenessCheckTimer?.Dispose();
+            keyboardHookInstaller.CurrentKeyboardHookHandle?.Dispose();
+        });
+        hookThreadDispatcher.InvokeShutdown();
+        keyboardHookSignals.Writer.TryComplete();
+    }
+
+    /// <summary>
     /// Hot-swaps the shortcut option without re-creating the hook (T-007): the new option travels on the
     /// translator channel and applies from the next key event. The settings layer calls this when the user
     /// changes the shortcut; nothing here touches the installed hook or its thread.
@@ -235,6 +251,9 @@ internal sealed class GlobalPushToTalkShortcutMonitor
             keyboardHookInstaller.InstallKeyboardHook();
             lastHookCallbackTickMilliseconds = Environment.TickCount64;
             RegisterRawInputWatchdog();
+            hookThreadDispatcher = Dispatcher.CurrentDispatcher;
+            // ShutdownTests' single-instance evidence: exactly one of these per live session.
+            ClickyLog.Write("hook installed");
             hookInstallation.SetResult();
         }
         catch (Exception installationException)

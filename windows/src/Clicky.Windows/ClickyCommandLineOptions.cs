@@ -27,14 +27,15 @@ internal sealed record ClickyCommandLineOptions(
     string? ScriptPath,
     bool DebugTriggerOnboardingDemo,
     ClickyUserSettingsChange? UserSettingsChange,
-    bool DebugUpdateNowRequested)
+    bool DebugUpdateNowRequested,
+    TimeSpan? DebugQuitAfter)
 {
     public const string UsageText =
         "usage: Clicky.exe [--replay <fixture.sse> | --replay-manifest <manifest.json>] [--event-delay-ms N] [--linger-ms N]\n" +
         "                  [--settings-override key=value,...] [--script <script.json>] [--debug-trigger-onboarding-demo]\n" +
         "                  [--record <fixture.sse>] [--report <report.json>] [--save-captures <directory>]\n" +
         "                  [--set-setting <settingsFileKey>=<value>] [--debug-stall-hook-once] [--debug-crash]\n" +
-        "                  [--debug-update-now]";
+        "                  [--debug-update-now] [--debug-quit-after-ms N]";
 
     public bool IsReplay => ReplayFixturePath is not null || ReplayManifestPath is not null;
 
@@ -54,6 +55,7 @@ internal sealed record ClickyCommandLineOptions(
         bool debugTriggerOnboardingDemo = false;
         ClickyUserSettingsChange? userSettingsChange = null;
         bool debugUpdateNowRequested = false;
+        int? debugQuitAfterMilliseconds = null;
 
         for (int argumentIndex = 0; argumentIndex < commandLineArguments.Count; argumentIndex++)
         {
@@ -78,6 +80,7 @@ internal sealed record ClickyCommandLineOptions(
                 case "--debug-crash": debugCrashRequested = true; break;
                 case "--set-setting": userSettingsChange = ClickyUserSettingsChange.Parse(NextValue()); break;
                 case "--debug-update-now": debugUpdateNowRequested = true; break;
+                case "--debug-quit-after-ms": debugQuitAfterMilliseconds = ParseNonNegativeMilliseconds(argumentName, NextValue()); break;
                 default: throw new CommandLineUsageException($"Unknown argument '{argumentName}'.");
             }
         }
@@ -126,6 +129,11 @@ internal sealed record ClickyCommandLineOptions(
             // Like --set-setting, --debug-update-now is its own one-shot run: the apply ends the process.
             throw new CommandLineUsageException("--debug-update-now runs one update check and exits; it cannot be combined with --replay, --replay-manifest, --record, --debug-crash or --set-setting.");
         }
+        if (debugQuitAfterMilliseconds is not null && (hasAnyReplayMode || debugCrashRequested || userSettingsChange is not null || debugUpdateNowRequested))
+        {
+            // --debug-quit-after-ms (T-030) times the live app's ordered shutdown; the other modes end on their own.
+            throw new CommandLineUsageException("--debug-quit-after-ms runs the live app and quits; it cannot be combined with --replay, --replay-manifest, --debug-crash, --set-setting or --debug-update-now.");
+        }
 
         return new ClickyCommandLineOptions(
             replayFixturePath,
@@ -141,7 +149,8 @@ internal sealed record ClickyCommandLineOptions(
             scriptPath,
             debugTriggerOnboardingDemo,
             userSettingsChange,
-            debugUpdateNowRequested);
+            debugUpdateNowRequested,
+            debugQuitAfterMilliseconds is int quitAfterMilliseconds ? TimeSpan.FromMilliseconds(quitAfterMilliseconds) : null);
     }
 
     private static int ParseNonNegativeMilliseconds(string argumentName, string argumentValue) =>

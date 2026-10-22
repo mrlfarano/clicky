@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
@@ -82,9 +84,10 @@ internal static class Program
             // hook, T-016), and it crashes before any request is made, so it takes the inert replay
             // endpoint instead of demanding WorkerBaseUrl like a real live session does. --set-setting
             // makes no request either; it only loads and writes the user's settings file, and
-            // --debug-update-now only talks to the update feed.
+            // --debug-update-now only talks to the update feed. --debug-quit-after-ms (T-030) runs live only to
+            // exercise startup and the ordered shutdown, so it must not need a deployed Worker either.
             chatEndpoint = options.IsReplay || options.DebugCrashRequested || options.UserSettingsChange is not null
-                || options.DebugUpdateNowRequested
+                || options.DebugUpdateNowRequested || options.DebugQuitAfter is not null
                 ? ReplayChatEndpoint
                 : settings.TryGetChatEndpoint()
                     ?? throw new CommandLineUsageException("Live mode needs WorkerBaseUrl in appsettings.json set to the deployed Worker's https URL.");
@@ -100,7 +103,8 @@ internal static class Program
         catch (Exception startupException) when (startupException is CommandLineUsageException or InvalidDataException or IOException or JsonException)
         {
             ClickyLog.Write($"startup error: {startupException.Message}");
-            Console.Error.WriteLine(ClickyCommandLineOptions.UsageText);
+            // A WinExe has no console to print to, so the usage goes to the log with the error.
+            ClickyLog.Write(ClickyCommandLineOptions.UsageText);
             return UsageOrConfigurationErrorExitCode;
         }
 
@@ -123,7 +127,10 @@ internal static class Program
                 application.Shutdown(RuntimeFailureExitCode);
             }
         };
-        return application.Run();
+        int exitCode = application.Run();
+        // PNL-05's evidence line: the message loop has ended and the process is about to exit.
+        ClickyLog.Write($"shutdown complete (exit {exitCode})");
+        return exitCode;
     }
 
     private static async Task RunAsync(
@@ -240,6 +247,20 @@ internal static class Program
             RaiseDeliberateDebugCrash();
         }
 
+        // One live Clicky per user session (audit A1, PNL-05): a second launch exits quietly before it can
+        // install a second hook. The name also carries the data directory, so test runs that point
+        // CLICKY_DATA_DIR elsewhere never collide with the user's own Clicky (or with each other).
+        var singleInstanceMutex = new Mutex(initiallyOwned: false, BuildSingleInstanceMutexName(), out bool isOnlyLiveInstance);
+        if (!isOnlyLiveInstance)
+        {
+            singleInstanceMutex.Dispose();
+            ClickyLog.Write("single instance: Clicky is already running in this session; exiting");
+            application.Shutdown(exitCode: 0);
+            return;
+        }
+        // The Exit subscription keeps the mutex handle open (and so the name taken) for the app's life.
+        application.Exit += (_, _) => singleInstanceMutex.Dispose();
+
         var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(
             effectiveUserSettings.PushToTalkShortcut, options.StallFirstHookCallback, timeProvider);
         // The monitor itself logs every transition ("ptt pressed" / "ptt released", T-007): the privacy rule
@@ -272,8 +293,35 @@ internal static class Program
             // The Exit subscription also keeps the hook (and its native callback delegate) alive for the app's life.
             application.Exit += (_, _) => foregroundWindowChangeHook.Dispose();
         }
-        ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}. Ctrl+C quits.");
+        ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}");
+
+        // shortcut: --debug-quit-after-ms is the only quit trigger until the tray's "Quit Clicky" lands (WS-18);
+        // that menu item calls ShutDownInOrder too.
+        if (options.DebugQuitAfter is TimeSpan debugQuitAfter)
+        {
+            await Task.Delay(debugQuitAfter, timeProvider);
+            ShutDownInOrder(application, shortcutMonitor, companionCoordinator);
+        }
     }
+
+    /// <summary>
+    /// PNL-05's stop path (leanring_buddyApp.swift:56-58, CompanionManager.swift:290-303): hook removed,
+    /// dictation cancelled, overlay hidden, in-flight work cancelled, then exit 0 ("shutdown complete" is
+    /// logged by Main once the message loop has ended).
+    /// </summary>
+    private static void ShutDownInOrder(Application application, GlobalPushToTalkShortcutMonitor shortcutMonitor, CompanionCoordinator companionCoordinator)
+    {
+        shortcutMonitor.Stop();
+        ClickyLog.Write("shutdown: hook removed");
+        companionCoordinator.StopForShutdown();
+        application.Shutdown(exitCode: 0);
+    }
+
+    // Local\ is the per-session namespace; the hashed data directory path is per user (%LOCALAPPDATA%) and
+    // holds no backslashes, which a kernel object name only allows after the namespace prefix.
+    private static string BuildSingleInstanceMutexName() =>
+        @"Local\Clicky-" + Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(ClickyDataDirectory.RootPath.ToUpperInvariant())))[..16];
 
     /// <summary>
     /// The --debug-crash hook (WS-11/T-016): raises a real unhandled exception on a dedicated thread so

@@ -129,15 +129,15 @@ internal static class Program
 
         var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(settings.PushToTalkShortcut, options.StallFirstHookCallback);
         CancellationTokenSource? currentInteractionCancellation = null;
+        // The monitor itself logs every transition ("ptt pressed" / "ptt released", T-007): the privacy rule
+        // that log lines carry transitions and state but never vk or scan codes lives next to the key events.
         shortcutMonitor.ShortcutTransitioned += shortcutTransition => application.Dispatcher.InvokeAsync(async () =>
         {
             if (shortcutTransition == PushToTalkTransition.Released)
             {
                 // The tracer bullet has no recording to finalize; the release is logged for ADR 001 acceptance 4.
-                ClickyLog.Write("ptt released");
                 return;
             }
-            ClickyLog.Write("ptt pressed");
             // A new press cancels the interaction still in flight, as on macOS (CompanionManager.swift:494-497).
             currentInteractionCancellation?.Cancel();
             var interactionCancellation = new CancellationTokenSource();

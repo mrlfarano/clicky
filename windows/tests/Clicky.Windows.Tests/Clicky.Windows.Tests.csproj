@@ -2,7 +2,7 @@
   <!-- Replay end-to-end: runs the built Clicky.exe in replay mode and asserts on its JSON report (ADR 001 tracer item 4). -->
   <PropertyGroup>
     <!-- Same TFM as Clicky.Windows, so the build-order reference below passes NuGet's compatibility check. -->
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.20348.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>

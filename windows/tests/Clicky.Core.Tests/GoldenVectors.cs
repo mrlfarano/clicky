@@ -16,7 +16,7 @@ internal static class GoldenVectors
     public static TheoryData<string> CaseIds(string seamName)
     {
         var caseIds = new TheoryData<string>();
-        foreach (JsonNode? vectorCase in LoadVectorFile(seamName)["cases"]!.AsArray())
+        foreach (JsonNode? vectorCase in LoadVectorDocument(seamName)["cases"]!.AsArray())
         {
             caseIds.Add((string)vectorCase!["id"]!);
         }
@@ -24,11 +24,12 @@ internal static class GoldenVectors
     }
 
     public static JsonObject LoadCase(string seamName, string caseId) =>
-        LoadVectorFile(seamName)["cases"]!.AsArray()
+        LoadVectorDocument(seamName)["cases"]!.AsArray()
             .Single(vectorCase => (string?)vectorCase!["id"] == caseId)!
             .AsObject();
 
-    private static JsonObject LoadVectorFile(string seamName)
+    /// <summary>The whole vector document, for assertions that need more than a single case.</summary>
+    public static JsonObject LoadVectorDocument(string seamName)
     {
         string vectorFilePath = Path.Combine(RepositoryRootDirectory, "shared", "golden", seamName + ".json");
         return JsonNode.Parse(File.ReadAllText(vectorFilePath))!.AsObject();

@@ -254,9 +254,9 @@
         "Given the status hint, when produced, then the suite asserts the copy 'Hold Ctrl+Alt to talk.'"
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/SessionReducerGoldenVectorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-07 part 2. Mac polls (200 ms) become events on TimeProvider. 'Show Clicky' toggle stays unrendered (ONB-03 parity). QA-matrix: recording showing overlay gone 1.0-1.6 s after audio ends.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/18",
+      "dev_notes": "Merged after CI green + fixes. Agent finished code but hit runtime limit pre-commit and left a compile error (record positional properties vs same-named methods in CompanionPanelStatus) - PM completed + verified (119 Core + 52 Windows + 1 skip). Content: transient hide on virtual clock (1s after TTS+pointing end, press cancels, pointing defers), persistent/transient start per isClickyCursorEnabled, CompanionPanelStatus (Setup/Ready/Active/Listening/Processing/Responding + dot colour, Swift-anchored) + hint copy. CI fix: document swiftAnchor reduced to single range per macOS validator format. Documented departure: tap-without-speech schedules hide every time (spec TTS-02) vs Mac once-until-first-reply (CompanionManager.swift:457). Reducer never reads a clock - shell owns the TimeProvider timer (T-012 wires it). Show-Clicky-change-while-running + onboarding events not modelled; hint fixed to Ctrl+Alt until shortcut picker.",
       "qa_result": null
     },
     {
@@ -820,9 +820,9 @@
         "Given channels win-beta and win, when configured, then UpdateServiceTests.ChannelSelectedFromConfig asserts the matching feed."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/UpdateServiceTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-10 part 1 (A4). Plan says WS-09 is needed 'to enable', so it is a dependency; ships off by default until T-015 has real secrets. 'Restart to update' in the panel, or WaitExitThenApplyUpdates on quit.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/19",
+      "dev_notes": "Merged after CI green. Agent hit limit pre-commit (xUnit1051 token errors); PM completed + verified (105+58+1skip on its branch). Idle-gated update service behind interfaces (VelopackUpdateFeedClient wraps UpdateManager): empty UpdateFeedUrl = zero requests; apply waits for idle via CompanionVoiceStateReporter; startup + 6h checks on injected clock, errors logged + retried; win-beta/win channel from config. Notes: live voice state approximate until reducer drives live mode (shortcut comment); ChecksAtStartupAndEverySixHours has a 100ms re-arm wait (flake watch - passed CI); apply-on-quit skipped (Velopack applies on next launch).",
       "qa_result": null
     },
     {

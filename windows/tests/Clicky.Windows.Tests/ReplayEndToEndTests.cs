@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Clicky.Core;
 using Xunit;
 
 namespace Clicky.Windows.Tests;
@@ -48,7 +49,9 @@ public sealed class ReplayEndToEndTests
         string sharedSystemPrompt = File.ReadAllText(
             Path.Combine(ClickyReplayProcess.RepositoryRootDirectory, "shared", "prompts", "companion-voice-response.txt"));
 
-        Assert.Equal((string?)shippedSettings["ClaudeModel"], (string?)requestBody["model"]);
+        // Since WS-12 the model is the user's selection from the data-directory settings.json (which the
+        // replay harness isolates to a throwaway dir, so no such file exists): the request carries the default.
+        Assert.Equal(CompanionSettings.DefaultClaudeModel, (string?)requestBody["model"]);
         Assert.Equal(1024, (int)requestBody["max_tokens"]!);
         Assert.True((bool)requestBody["stream"]!);
         Assert.Equal(sharedSystemPrompt, (string?)requestBody["system"]);

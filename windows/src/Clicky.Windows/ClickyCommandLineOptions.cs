@@ -24,13 +24,14 @@ internal sealed record ClickyCommandLineOptions(
     bool DebugCrashRequested,
     IReadOnlyList<SettingsOverridePair> SettingsOverrides,
     string? ScriptPath,
-    bool DebugTriggerOnboardingDemo)
+    bool DebugTriggerOnboardingDemo,
+    ClickyUserSettingsChange? UserSettingsChange)
 {
     public const string UsageText =
         "usage: Clicky.exe [--replay <fixture.sse> | --replay-manifest <manifest.json>] [--event-delay-ms N] [--linger-ms N]\n" +
         "                  [--settings-override key=value,...] [--script <script.json>] [--debug-trigger-onboarding-demo]\n" +
         "                  [--record <fixture.sse>] [--report <report.json>] [--save-captures <directory>]\n" +
-        "                  [--debug-stall-hook-once] [--debug-crash]";
+        "                  [--set-setting <settingsFileKey>=<value>] [--debug-stall-hook-once] [--debug-crash]";
 
     public bool IsReplay => ReplayFixturePath is not null || ReplayManifestPath is not null;
 
@@ -48,6 +49,7 @@ internal sealed record ClickyCommandLineOptions(
         List<SettingsOverridePair>? settingsOverrides = null;
         string? scriptPath = null;
         bool debugTriggerOnboardingDemo = false;
+        ClickyUserSettingsChange? userSettingsChange = null;
 
         for (int argumentIndex = 0; argumentIndex < commandLineArguments.Count; argumentIndex++)
         {
@@ -70,6 +72,7 @@ internal sealed record ClickyCommandLineOptions(
                 case "--linger-ms": lingerMilliseconds = ParseNonNegativeMilliseconds(argumentName, NextValue()); break;
                 case "--debug-stall-hook-once": stallFirstHookCallback = true; break;
                 case "--debug-crash": debugCrashRequested = true; break;
+                case "--set-setting": userSettingsChange = ClickyUserSettingsChange.Parse(NextValue()); break;
                 default: throw new CommandLineUsageException($"Unknown argument '{argumentName}'.");
             }
         }
@@ -107,6 +110,12 @@ internal sealed record ClickyCommandLineOptions(
         {
             throw new CommandLineUsageException($"Input script not found: {scriptPath}");
         }
+        if (userSettingsChange is not null && (hasAnyReplayMode || recordFixturePath is not null || debugCrashRequested))
+        {
+            // --set-setting applies one user setting through the real persistence path and exits; mixing
+            // it into a replay or a crash-test run would make both halves' exit codes ambiguous.
+            throw new CommandLineUsageException("--set-setting applies one user setting and exits; it cannot be combined with --replay, --replay-manifest, --record or --debug-crash.");
+        }
 
         return new ClickyCommandLineOptions(
             replayFixturePath,
@@ -120,7 +129,8 @@ internal sealed record ClickyCommandLineOptions(
             debugCrashRequested,
             settingsOverrides ?? [],
             scriptPath,
-            debugTriggerOnboardingDemo);
+            debugTriggerOnboardingDemo,
+            userSettingsChange);
     }
 
     private static int ParseNonNegativeMilliseconds(string argumentName, string argumentValue) =>

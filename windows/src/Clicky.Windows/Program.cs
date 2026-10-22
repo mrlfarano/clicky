@@ -40,6 +40,7 @@ internal static class Program
         string interactionUserPromptText;
         string effectiveClaudeModel;
         CompanionSettings effectiveUserSettings;
+        ClickyUserSettingsStore userSettingsStore;
         Uri chatEndpoint;
         ReplayManifest? replayManifest;
         ReplayScript? replayScript;
@@ -47,22 +48,24 @@ internal static class Program
         {
             options = ClickyCommandLineOptions.Parse(commandLineArguments);
             settings = ClickySettings.LoadFromApplicationDirectory();
+            // The user's settings load right after the ship-time file so the app has one merged view from
+            // the first line of startup (ONB-04): defaults <- <data directory>\settings.json. A corrupt
+            // file is not fatal — the merger returns every default and flags it, and the next settings
+            // change rewrites the file valid (WS-12).
+            userSettingsStore = new ClickyUserSettingsStore();
+            CompanionSettingsMergeResult userSettingsMergeResult = userSettingsStore.Load();
+            if (userSettingsMergeResult.UserSettingsFileWasCorrupt)
+            {
+                ClickyLog.Write("settings: user settings file is corrupt; using defaults, the next change rewrites it");
+            }
+            // The --settings-override replay-harness layer applies over whatever was loaded (defaults <-
+            // settings.json) and lands in the report's effectiveSettings section; it is never persisted —
+            // only --set-setting writes, through the store.
+            effectiveUserSettings = CompanionSettingsOverrideApplier.Apply(userSettingsMergeResult.Settings, options.SettingsOverrides);
+            // The model lives only in user settings (T-018 removed the appsettings copy): the loaded value
+            // with its claude-sonnet-4-6 default, or the override when a parity scenario pins it (CLA-08).
+            effectiveClaudeModel = effectiveUserSettings.SelectedClaudeModel;
             interactionSystemPrompt = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "prompts", "companion-voice-response.txt"));
-            // The user settings the app loaded: %LOCALAPPDATA%\Clicky\settings.json merged over the ONB-04
-            // defaults when that file exists (Core's merger, T-017). T-018 (WS-12) adds writing it; reading
-            // it here already keeps --settings-override semantics complete — the override layer applies over
-            // whatever was loaded, and both land in the report's effectiveSettings section.
-            string userSettingsFilePath = Path.Combine(ClickyDataDirectory.RootPath, "settings.json");
-            string? userSettingsFileContents = File.Exists(userSettingsFilePath) ? File.ReadAllText(userSettingsFilePath) : null;
-            CompanionSettings loadedUserSettings =
-                CompanionSettingsMerger.MergeUserSettingsFileContentsOverDefaults(userSettingsFileContents).Settings;
-            effectiveUserSettings = CompanionSettingsOverrideApplier.Apply(loadedUserSettings, options.SettingsOverrides);
-            // The tracer's model comes from appsettings.json; a selectedClaudeModel override (parity spec
-            // CLA-08) wins over it, because the override exists to pin the model a scenario asserts on.
-            effectiveClaudeModel = options.SettingsOverrides.Any(
-                overridePair => overridePair.SettingsFileKeyName == CompanionSettingsMerger.SelectedClaudeModelSettingsFileKeyName)
-                ? effectiveUserSettings.SelectedClaudeModel
-                : settings.ClaudeModel;
             // --debug-trigger-onboarding-demo runs the ONB-02 demo interaction instead of the tracer prompt:
             // the demo system prompt (shared/prompts/onboarding-demo.txt) and the demo's fixed user text.
             if (options.DebugTriggerOnboardingDemo)
@@ -76,8 +79,9 @@ internal static class Program
             }
             // --debug-crash must run with zero configuration on any machine (it is a crash-reporting test
             // hook, T-016), and it crashes before any request is made, so it takes the inert replay
-            // endpoint instead of demanding WorkerBaseUrl like a real live session does.
-            chatEndpoint = options.IsReplay || options.DebugCrashRequested
+            // endpoint instead of demanding WorkerBaseUrl like a real live session does. --set-setting
+            // makes no request either; it only loads and writes the user's settings file.
+            chatEndpoint = options.IsReplay || options.DebugCrashRequested || options.UserSettingsChange is not null
                 ? ReplayChatEndpoint
                 : settings.TryGetChatEndpoint()
                     ?? throw new CommandLineUsageException("Live mode needs WorkerBaseUrl in appsettings.json set to the deployed Worker's https URL.");
@@ -108,7 +112,7 @@ internal static class Program
             {
                 await RunAsync(
                     application, options, settings, interactionSystemPrompt, interactionUserPromptText, effectiveClaudeModel,
-                    effectiveUserSettings, chatEndpoint, replayManifest, replayScript, TimeProvider.System);
+                    effectiveUserSettings, userSettingsStore, chatEndpoint, replayManifest, replayScript, TimeProvider.System);
             }
             catch (Exception unexpectedException)
             {
@@ -127,11 +131,26 @@ internal static class Program
         string interactionUserPromptText,
         string effectiveClaudeModel,
         CompanionSettings effectiveUserSettings,
+        ClickyUserSettingsStore userSettingsStore,
         Uri chatEndpoint,
         ReplayManifest? replayManifest,
         ReplayScript? replayScript,
         TimeProvider timeProvider)
     {
+        // --set-setting is the tracer stand-in for a panel settings change (the panel lands in WS-18/19):
+        // apply exactly one change through the real persistence path — load-merged settings in, atomic
+        // write out — and exit, so one process run equals "the app started and one setting changed".
+        if (options.UserSettingsChange is ClickyUserSettingsChange requestedUserSettingsChange)
+        {
+            // --set-setting cannot be combined with --settings-override (parse rejects the mix), so the
+            // effective settings here are exactly the loaded ones.
+            CompanionSettings updatedUserSettings = requestedUserSettingsChange.ApplyToCompanionSettings(effectiveUserSettings);
+            userSettingsStore.Save(updatedUserSettings);
+            ClickyLog.Write($"settings: saved {requestedUserSettingsChange.SettingsFileKeyName} to {userSettingsStore.SettingsFilePath}");
+            application.Shutdown(exitCode: 0);
+            return;
+        }
+
         var overlayWindow = new CursorOverlayWindow();
         overlayWindow.CreateHiddenWindowHandle();
 
@@ -195,7 +214,7 @@ internal static class Program
             RaiseDeliberateDebugCrash();
         }
 
-        var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(settings.PushToTalkShortcut, options.StallFirstHookCallback);
+        var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(effectiveUserSettings.PushToTalkShortcut, options.StallFirstHookCallback);
         CancellationTokenSource? currentInteractionCancellation = null;
         shortcutMonitor.ShortcutTransitioned += shortcutTransition => application.Dispatcher.InvokeAsync(async () =>
         {
@@ -220,7 +239,7 @@ internal static class Program
             }
         });
         shortcutMonitor.Start();
-        ClickyLog.Write($"live: listening for {settings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}. Ctrl+C quits.");
+        ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}. Ctrl+C quits.");
     }
 
     /// <summary>

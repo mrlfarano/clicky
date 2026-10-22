@@ -121,6 +121,9 @@ internal sealed class TracerInteractionRunner(
             await CaptureLabeledScreenshotsAsync(monitors, report, cancellationToken);
 
         JsonObject requestBody = ClaudeRequestBuilder.BuildStreamingMessagesBody(
+            // claudeModel is the effective user-settings model: loaded from the data-directory
+            // settings.json (ONB-04/CLA-08) with its claude-sonnet-4-6 default, or a
+            // --settings-override value when a parity scenario pins it.
             claudeModel,
             systemPrompt,
             capturedScreenshots.Select(capturedScreenshot => capturedScreenshot.LabeledScreenshot).ToList(),

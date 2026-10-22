@@ -9,7 +9,7 @@
 # Renaming a job silently drops it from the required checks.
 #   macos-parity      golden-vector schema, worker build, parity-spec link lint
 #   windows-build     build, Core tests, replay e2e, publish, (sign), vpk pack,
-#                     assert-artifacts, Defender scan
+#                     assert-artifacts, Defender scan, installed-replay
 #   linux-core-tests  Clicky.Core.Tests on Linux
 #
 # BRANCH PROTECTION cannot be configured from the repo. The owner sets it in
@@ -343,6 +343,135 @@ jobs:
             }
           }
           if ($failed) { exit 1 }
+
+      - name: installed-replay
+        # T-014 / WS-08 part 2: smoke-test the INSTALLED copy, not the build output.
+        # Sits after the Defender scan so nothing executes before it has been scanned,
+        # and before the upload so a failure is visible in the uploaded artifacts' logs.
+        #
+        # Velopack behavior this step depends on (observed locally with vpk 1.2.161,
+        # the pinned version, by running the generated Setup.exe):
+        #   - Setup.exe --silent (shown by 'Setup.exe --help' as '-s, --silent: Hides
+        #     all dialogs and answers yes to all prompts') does a FULL install that
+        #     replaces the whole %LOCALAPPDATA%\Clicky root — it deletes settings.json,
+        #     logs\ and crashes\ beside current\, on a same-version rerun and on a newer
+        #     version alike.
+        #   - The staged update apply ('Update.exe apply -s --norestart -p <full.nupkg>',
+        #     the command UpdateManager.ApplyUpdates runs) replaces only current\ and
+        #     leaves everything beside it untouched.
+        # The user-data assertion therefore applies the second package through
+        # Update.exe: that is the update path users ride, and the path WS-08 requires
+        # to preserve user data. Re-running Setup.exe instead would wipe it.
+        #
+        # The replay fixture is passed as an absolute path from the checkout: the exe
+        # resolves --replay purely via Path.GetFullPath + File.Exists
+        # (ClickyCommandLineOptions), so it needs nothing repo-shaped beside the
+        # install and the installed copy stays honest.
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $setupExecutableFiles = @(Get-ChildItem "../artifacts/package/*-Setup.exe")
+          if ($setupExecutableFiles.Count -ne 1) {
+            Write-Host "::error::installed-replay: expected exactly one Setup.exe in ../artifacts/package, found $($setupExecutableFiles.Count)"
+            exit 1
+          }
+          $setupExecutablePath = $setupExecutableFiles[0].FullName
+          $velopackRootDirectory = Join-Path $env:LOCALAPPDATA "Clicky"
+          $installedCurrentDirectory = Join-Path $velopackRootDirectory "current"
+          $installedClickyExecutablePath = Join-Path $installedCurrentDirectory "Clicky.exe"
+
+          # 1) Silent install of the package the Package step just built.
+          $firstSilentInstallProcess = Start-Process -FilePath $setupExecutablePath -ArgumentList "--silent" -PassThru -Wait
+          if ($firstSilentInstallProcess.ExitCode -ne 0) {
+            Write-Host "::error::installed-replay: silent install of $setupExecutablePath exited $($firstSilentInstallProcess.ExitCode)"
+            exit 1
+          }
+          if (-not (Test-Path $installedClickyExecutablePath)) {
+            Write-Host "::error::installed-replay: silent install did not create $installedClickyExecutablePath"
+            exit 1
+          }
+
+          # 2) Seed the user data WS-08 keeps beside current\: settings.json (the ADR
+          #    settings location; WS-12 persists it for real), and sentinel files under
+          #    logs\ and crashes\. The replay run below appends real entries to logs\.
+          Set-Content -Path (Join-Path $velopackRootDirectory "settings.json") -Value '{"updateChannel":"win-beta"}'
+          New-Item -ItemType Directory -Force (Join-Path $velopackRootDirectory "logs"), (Join-Path $velopackRootDirectory "crashes") | Out-Null
+          Set-Content -Path (Join-Path $velopackRootDirectory "logs/clicky-installed-replay-seed.log") -Value "seed log line that must survive a package apply"
+          Set-Content -Path (Join-Path $velopackRootDirectory "crashes/installed-replay-seed.txt") -Value "seed crash report that must survive a package apply"
+
+          # 3) Run the INSTALLED Clicky.exe in replay mode and require exit 0 plus the
+          #    report on disk (a run that silently skipped replay would produce neither).
+          $replayFixturePath = (Resolve-Path "../shared/fixtures/sse/point-basic.sse").Path
+          $replayReportPath = Join-Path $env:RUNNER_TEMP "installed-replay-report.json"
+          Remove-Item $replayReportPath -Force -ErrorAction SilentlyContinue
+          $installedReplayProcess = Start-Process -FilePath $installedClickyExecutablePath -ArgumentList @("--replay", $replayFixturePath, "--report", $replayReportPath) -PassThru -Wait
+          if ($installedReplayProcess.ExitCode -ne 0) {
+            Write-Host "::error::installed-replay: installed Clicky.exe --replay point-basic.sse exited $($installedReplayProcess.ExitCode)"
+            exit 1
+          }
+          if (-not (Test-Path $replayReportPath)) {
+            Write-Host "::error::installed-replay: installed Clicky.exe wrote no report at $replayReportPath"
+            exit 1
+          }
+
+          # 4) Snapshot the user data, then apply a SECOND package through the update
+          #    path. The second version appends '.1' to the Package step's version so it
+          #    sorts newer on the win-beta channel, and it packs into RUNNER_TEMP so
+          #    ../artifacts/package keeps exactly the one release set assert-artifacts
+          #    validated and the upload step ships.
+          function Get-UserDataFileState {
+            $userDataEntries = @(Get-Item -LiteralPath (Join-Path $velopackRootDirectory "settings.json"))
+            $userDataEntries += Get-ChildItem -LiteralPath (Join-Path $velopackRootDirectory "logs"), (Join-Path $velopackRootDirectory "crashes") -Recurse -File
+            $userDataEntries | ForEach-Object {
+              "{0}={1}" -f $_.FullName, (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+            }
+          }
+          $userDataStateBeforeSecondApply = @(Get-UserDataFileState)
+
+          $secondPackageVersion = "0.1.0-ci.$env:GITHUB_RUN_NUMBER.1"
+          $secondPackageDirectory = Join-Path $env:RUNNER_TEMP "clicky-second-package"
+          vpk pack --packId Clicky --packVersion $secondPackageVersion --packTitle Clicky --runtime win-x64 `
+            --channel win-beta --mainExe Clicky.exe `
+            --packDir ../artifacts/publish --outputDir $secondPackageDirectory
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::installed-replay: second vpk pack (version $secondPackageVersion) exited $LASTEXITCODE"
+            exit 1
+          }
+          $secondFullNupkgFiles = @(Get-ChildItem (Join-Path $secondPackageDirectory "*-full.nupkg"))
+          if ($secondFullNupkgFiles.Count -ne 1) {
+            Write-Host "::error::installed-replay: expected exactly one full .nupkg for version $secondPackageVersion, found $($secondFullNupkgFiles.Count)"
+            exit 1
+          }
+
+          # --norestart keeps Update.exe from launching the app afterward: live mode
+          # would install the keyboard hook and wait for Ctrl+C, hanging the job.
+          $installedUpdateExecutablePath = Join-Path $velopackRootDirectory "Update.exe"
+          $secondApplyProcess = Start-Process -FilePath $installedUpdateExecutablePath -ArgumentList @("apply", "-s", "--norestart", "-p", $secondFullNupkgFiles[0].FullName) -PassThru -Wait
+          if ($secondApplyProcess.ExitCode -ne 0) {
+            Write-Host "::error::installed-replay: second package apply via Update.exe exited $($secondApplyProcess.ExitCode)"
+            exit 1
+          }
+          if (-not (Test-Path $installedClickyExecutablePath)) {
+            Write-Host "::error::installed-replay: second package apply removed $installedClickyExecutablePath"
+            exit 1
+          }
+          # current\sq.version reporting the second version proves the apply really
+          # replaced current\ rather than exiting 0 as a silent no-op.
+          $installedVersionManifestText = Get-Content (Join-Path $installedCurrentDirectory "sq.version") -Raw
+          if ($installedVersionManifestText -notmatch [Regex]::Escape($secondPackageVersion)) {
+            Write-Host "::error::installed-replay: current\sq.version does not report the second package version $secondPackageVersion, so the apply did not take effect"
+            exit 1
+          }
+
+          # 5) The user data beside current\ must be byte-identical after the apply:
+          #    no file added, removed or modified.
+          $userDataStateAfterSecondApply = @(Get-UserDataFileState)
+          $userDataDifferences = @(Compare-Object -ReferenceObject $userDataStateBeforeSecondApply -DifferenceObject $userDataStateAfterSecondApply)
+          if ($userDataDifferences.Count -gt 0) {
+            $userDataDifferences | ForEach-Object { Write-Host "::error::installed-replay: user data beside current\ did not survive the second package apply: $($_.InputObject) ($($_.SideIndicator))" }
+            exit 1
+          }
+          Write-Host "installed-replay: silent install OK, installed --replay point-basic.sse exited 0, second package $secondPackageVersion applied, $($userDataStateAfterSecondApply.Count) user-data file(s) beside current\ byte-identical"
 
       - name: Upload artifacts
         if: always()

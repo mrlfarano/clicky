@@ -29,7 +29,13 @@ internal static class GoldenVectors
             .AsObject();
 
     /// <summary>The whole vector document, for assertions that need more than a single case.</summary>
-    public static JsonObject LoadVectorDocument(string seamName)
+    public static JsonObject LoadVectorDocument(string seamName) => LoadVectorFile(seamName);
+
+    /// <summary>Every case of a seam, for suite-shape assertions such as option and branch coverage.</summary>
+    public static IEnumerable<JsonObject> LoadAllCases(string seamName) =>
+        LoadVectorFile(seamName)["cases"]!.AsArray().Select(vectorCase => vectorCase!.AsObject());
+
+    private static JsonObject LoadVectorFile(string seamName)
     {
         string vectorFilePath = Path.Combine(RepositoryRootDirectory, "shared", "golden", seamName + ".json");
         return JsonNode.Parse(File.ReadAllText(vectorFilePath))!.AsObject();

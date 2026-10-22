@@ -2,7 +2,9 @@ namespace Clicky.Core;
 
 /// <summary>
 /// Platform-neutral modifier set (seam 7). Each platform's event source decides which physical keys
-/// count: on Windows, Control means left Ctrl and Alt means left Alt only (ADR 001 "Shortcut").
+/// count: on Windows, Control means left Ctrl and Alt means left Alt only (ADR 001 "Shortcut"), while
+/// either Shift key counts because macOS's .shift flag is side-agnostic and Shift carries no AltGr
+/// hazard (decision PTT-04).
 /// Fn is left out because the only option that used it (.shiftFunction) is dropped on Windows (audit C3).
 /// </summary>
 [Flags]

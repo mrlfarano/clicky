@@ -125,6 +125,100 @@
       "expected": { "transitions": ["none", "pressed", "released"] }
     },
     {
+      "id": "shift-ctrl-release-on-ctrl-up",
+      "branch": "modifier-only-released",
+      "input": {
+        "option": "shiftControl",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["shift"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["shift"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "released"] }
+    },
+    {
+      "id": "shift-ctrl-held-no-retrigger",
+      "branch": "modifier-only-held",
+      "input": {
+        "option": "shiftControl",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["shift"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "none", "none"] }
+    },
+    {
+      "id": "shift-ctrl-extra-alt-still-presses",
+      "branch": "modifier-only-contains",
+      "input": {
+        "option": "shiftControl",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["alt"] },
+          { "type": "flagsChanged", "modifiers": ["alt", "shift"] },
+          { "type": "flagsChanged", "modifiers": ["alt", "shift", "ctrl"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "pressed"] }
+    },
+    {
+      "id": "shift-ctrl-key-events-ignored",
+      "branch": "modifier-only-ignores-keys",
+      "input": {
+        "option": "shiftControl",
+        "events": [
+          { "type": "keyDown", "key": "space", "modifiers": ["shift", "ctrl"] },
+          { "type": "keyUp", "key": "space", "modifiers": ["shift", "ctrl"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none"] }
+    },
+    {
+      "id": "shift-ctrl-space-press-release",
+      "branch": "space-pressed-released",
+      "input": {
+        "option": "shiftControlSpace",
+        "events": [
+          { "type": "flagsChanged", "modifiers": ["shift"] },
+          { "type": "flagsChanged", "modifiers": ["shift", "ctrl"] },
+          { "type": "keyDown", "key": "space", "modifiers": ["shift", "ctrl"] },
+          { "type": "keyDown", "key": "space", "modifiers": ["shift", "ctrl"] },
+          { "type": "keyUp", "key": "space", "modifiers": ["shift", "ctrl"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "pressed", "none", "released"] }
+    },
+    {
+      "id": "shift-ctrl-space-release-ignores-modifiers",
+      "branch": "space-release-any-modifiers",
+      "input": {
+        "option": "shiftControlSpace",
+        "events": [
+          { "type": "keyDown", "key": "space", "modifiers": ["shift", "ctrl", "alt"] },
+          { "type": "flagsChanged", "modifiers": ["shift"] },
+          { "type": "flagsChanged", "modifiers": [] },
+          { "type": "keyUp", "key": "space", "modifiers": [] }
+        ]
+      },
+      "expected": { "transitions": ["pressed", "none", "none", "released"] }
+    },
+    {
+      "id": "shift-ctrl-space-missing-modifiers",
+      "branch": "space-missing-modifiers",
+      "input": {
+        "option": "shiftControlSpace",
+        "events": [
+          { "type": "keyDown", "key": "space", "modifiers": ["ctrl"] },
+          { "type": "keyUp", "key": "space", "modifiers": ["ctrl"] },
+          { "type": "keyDown", "key": "other", "modifiers": ["shift", "ctrl"] }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "none"] }
+    },
+    {
       "id": "lctrl-lalt-press-release",
       "branch": "windows-left-keys",
       "platform": "windows",
@@ -240,6 +334,76 @@
         ]
       },
       "expected": { "transitions": ["none", "none", "pressed", "none", "released"] }
+    },
+    {
+      "id": "shift-ctrl-right-shift-presses",
+      "branch": "windows-shift-side-agnostic",
+      "platform": "windows",
+      "note": "Right Shift (vk 0xA1) must satisfy the Shift modifier for shiftControl: macOS .shift is side-agnostic (PTT-04) and Shift has no AltGr hazard, unlike Ctrl/Alt which stay left-specific.",
+      "input": {
+        "option": "shiftControl",
+        "rawEvents": [
+          { "vk": 161, "scanCode": 54, "keyUp": false },
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 162, "scanCode": 29, "keyUp": true },
+          { "vk": 161, "scanCode": 54, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "released", "none"] }
+    },
+    {
+      "id": "right-shift-also-works",
+      "branch": "windows-shift-side-agnostic",
+      "platform": "windows",
+      "note": "Right Shift also satisfies the Shift modifier for the space variant shiftControlSpace.",
+      "input": {
+        "option": "shiftControlSpace",
+        "rawEvents": [
+          { "vk": 161, "scanCode": 54, "keyUp": false },
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 32, "scanCode": 57, "keyUp": false },
+          { "vk": 32, "scanCode": 57, "keyUp": true },
+          { "vk": 161, "scanCode": 54, "keyUp": true },
+          { "vk": 162, "scanCode": 29, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "pressed", "released", "none", "none"] }
+    },
+    {
+      "id": "shift-ctrl-left-right-mixed",
+      "branch": "windows-shift-side-agnostic",
+      "platform": "windows",
+      "note": "Releasing left Shift while right Shift is still held must keep the Shift modifier set, so the press survives the handoff between Shift keys.",
+      "input": {
+        "option": "shiftControl",
+        "rawEvents": [
+          { "vk": 160, "scanCode": 42, "keyUp": false },
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 161, "scanCode": 54, "keyUp": false },
+          { "vk": 160, "scanCode": 42, "keyUp": true },
+          { "vk": 162, "scanCode": 29, "keyUp": true },
+          { "vk": 161, "scanCode": 54, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "pressed", "none", "none", "released", "none"] }
+    },
+    {
+      "id": "lctrl-lalt-right-shift-still-presses",
+      "branch": "windows-shift-side-agnostic",
+      "platform": "windows",
+      "note": "Holding right Shift must not block the default controlOption: the modifier-only rule is a superset test, so extra Shift state is ignored.",
+      "input": {
+        "option": "controlOption",
+        "rawEvents": [
+          { "vk": 161, "scanCode": 54, "keyUp": false },
+          { "vk": 162, "scanCode": 29, "keyUp": false },
+          { "vk": 164, "scanCode": 56, "keyUp": false },
+          { "vk": 164, "scanCode": 56, "keyUp": true },
+          { "vk": 162, "scanCode": 29, "keyUp": true },
+          { "vk": 161, "scanCode": 54, "keyUp": true }
+        ]
+      },
+      "expected": { "transitions": ["none", "none", "pressed", "released", "none", "none"] }
     }
   ]
 }

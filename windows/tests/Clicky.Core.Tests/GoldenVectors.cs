@@ -28,6 +28,10 @@ internal static class GoldenVectors
             .Single(vectorCase => (string?)vectorCase!["id"] == caseId)!
             .AsObject();
 
+    /// <summary>Every case of a seam, for suite-shape assertions such as option and branch coverage.</summary>
+    public static IEnumerable<JsonObject> LoadAllCases(string seamName) =>
+        LoadVectorFile(seamName)["cases"]!.AsArray().Select(vectorCase => vectorCase!.AsObject());
+
     private static JsonObject LoadVectorFile(string seamName)
     {
         string vectorFilePath = Path.Combine(RepositoryRootDirectory, "shared", "golden", seamName + ".json");

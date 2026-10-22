@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Clicky.Core;
 
 namespace Clicky.Windows;
@@ -41,6 +42,22 @@ internal sealed class TracerRunReport
     public JsonNode? RequestBody { get; set; }
     public string? Error { get; set; }
 
+    // The phase-6 report fields (WS-04 part 2): present as arrays in every report, populated only by the
+    // pieces that own them. voiceStateTimeline holds the scripted input events this task delivers (T-012's
+    // coordinator fills in the full state machine); the three sink-backed arrays hold what the in-memory
+    // stub sinks recorded (T-029 and T-044 replace the stubs with the real TTS and PostHog sinks).
+    public List<VoiceStateTimelineEntry> VoiceStateTimeline { get; } = [];
+    public List<AnalyticsEventReport> AnalyticsEvents { get; } = [];
+    public List<TtsRequestReport> TtsRequests { get; } = [];
+    public List<string> FallbackUtterances { get; } = [];
+
+    /// <summary>
+    /// The user settings this run actually used: the settings the app loaded with every --settings-override
+    /// pair applied on top. Shown even when nothing was overridden, so a report always states its settings
+    /// the way the parity scenarios read them (CLA-08, ONB-03).
+    /// </summary>
+    public required EffectiveSettingsReport EffectiveSettings { get; init; }
+
     public void WriteTo(string reportPath)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
@@ -77,6 +94,49 @@ internal sealed class TracerRunReport
 }
 
 internal sealed record DisplayTimelineEntry(long TMs, long EventTMs, string Text);
+
+/// <summary>
+/// One voiceState change with its milliseconds on the virtual clock that times the interaction (the same
+/// TimeProvider that paces the SSE stream). Parity spec PTT-01: a press starts recording ("listening"), a
+/// release starts finalization ("processing"); the T-002 stub records one entry per scripted input event,
+/// and T-012's session coordinator replaces it with the full reducer-driven timeline.
+/// </summary>
+internal sealed record VoiceStateTimelineEntry(long TMs, string State);
+
+/// <summary>One analytics event exactly as it was handed to the analytics sink (parity spec AN-01).</summary>
+internal sealed record AnalyticsEventReport(
+    string Name,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, string?>? Properties);
+
+/// <summary>One text handed to the TTS sink to be spoken; the /tts request body the real sink would send.</summary>
+internal sealed record TtsRequestReport(string Text);
+
+/// <summary>
+/// The effectiveSettings report section: the effective user settings of the run, with every value shown
+/// under its settings-file key name (the ONB-04 key set) so reports and settings files read the same way.
+/// </summary>
+internal sealed record EffectiveSettingsReport(
+    string SelectedClaudeModel,
+    bool IsClickyCursorEnabled,
+    bool HasCompletedOnboarding,
+    bool HasSubmittedEmail,
+    string PushToTalkShortcut,
+    string? AnalyticsDistinctId)
+{
+    public static EffectiveSettingsReport FromCompanionSettings(CompanionSettings companionSettings)
+    {
+        // The persisted settings-file name (e.g. "controlOption"), not the enum spelling "ControlOption".
+        string shortcutSettingsFileName = companionSettings.PushToTalkShortcut.ToString();
+        shortcutSettingsFileName = char.ToLowerInvariant(shortcutSettingsFileName[0]) + shortcutSettingsFileName[1..];
+        return new EffectiveSettingsReport(
+            companionSettings.SelectedClaudeModel,
+            companionSettings.IsClickyCursorEnabled,
+            companionSettings.HasCompletedOnboarding,
+            companionSettings.HasSubmittedEmail,
+            shortcutSettingsFileName,
+            companionSettings.AnalyticsDistinctId);
+    }
+}
 
 internal sealed record PhysicalPixelPointReport(int X, int Y);
 

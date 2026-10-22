@@ -38,9 +38,9 @@
         "Given stubbed audio and analytics sinks, when replay runs, then ReplayHarnessFlagsTests.SinksAreStubbed asserts no outbound request to posthog.com and no audio device is opened."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/ReplayHarnessFlagsTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-04 part 2. New report fields stay empty until T-012/T-029/T-044 populate them.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/11",
+      "dev_notes": "SALVAGE NOTE: dev agent committed df74f74 fully green (115/115, 7 tests incl. 4 AC-named) then died on ZCode sub-agent quota exhaustion (reset 2026-10-27) before reporting; PM verified the orphaned commit and merged with T-018: ClickyUserSettingsStore load feeds CompanionSettingsOverrideApplier (overrides land in report effectiveSettings, never persisted - only --set-setting writes), model precedence unified to effectiveUserSettings.SelectedClaudeModel (appsettings model removed by T-018), runner ctor union with stub sinks + replayScript, --set-setting applies to effective settings (parse rejects mixing with --settings-override). 125/125 post-merge clean rebuild. Report fields: voiceStateTimeline, analyticsEvents, ttsRequests, fallbackUtterances from InMemory stub sinks.",
       "qa_result": null
     },
     {

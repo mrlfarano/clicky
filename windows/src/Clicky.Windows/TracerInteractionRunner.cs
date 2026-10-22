@@ -41,13 +41,14 @@ internal sealed class TracerInteractionRunner(
     /// <summary>
     /// Captures, sends <paramref name="transcript"/> and streams the reply into the bubble. Returns the full
     /// response text, or null when the exchange failed and the failure is recorded in the report; cancellation
-    /// by a newer press propagates as <see cref="OperationCanceledException"/>.
+    /// by a newer press propagates as <see cref="OperationCanceledException"/>. <paramref name="submitTMs"/> is
+    /// the virtual-clock instant the transcript was submitted, recorded in the report's captureTimeline.
     /// </summary>
-    public async Task<string?> RunChatExchangeAsync(TracerRunReport report, string transcript, CancellationToken cancellationToken)
+    public async Task<string?> RunChatExchangeAsync(TracerRunReport report, string transcript, long submitTMs, CancellationToken cancellationToken)
     {
         try
         {
-            return await CaptureSendAndStreamAsync(report, transcript, cancellationToken);
+            return await CaptureSendAndStreamAsync(report, transcript, submitTMs, cancellationToken);
         }
         catch (Exception interactionException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -97,22 +98,26 @@ internal sealed class TracerInteractionRunner(
         report.FallbackUtterances.AddRange(fallbackSpeechSink.RecordedUtterances);
     }
 
-    private async Task<string> CaptureSendAndStreamAsync(TracerRunReport report, string transcript, CancellationToken cancellationToken)
+    private async Task<string> CaptureSendAndStreamAsync(TracerRunReport report, string transcript, long submitTMs, CancellationToken cancellationToken)
     {
         PInvoke.GetCursorPos(out System.Drawing.Point cursorPositionPx);
         overlayWindow.ShowWithHotspotAt(cursorPositionPx);
 
-        IReadOnlyList<DisplayMonitor> monitors = DisplayMonitorEnumerator.EnumerateCursorMonitorFirst(cursorPositionPx);
+        IReadOnlyList<DisplayMonitor> enumeratedMonitors = DisplayMonitorEnumerator.EnumerateMonitors(cursorPositionPx);
         if (options.DebugTriggerOnboardingDemo)
         {
             // ONB-02: the onboarding demo sends only the cursor's monitor, so Claude cannot pick something
             // on a different screen the demo cannot point at (performOnboardingDemoInteraction,
             // CompanionManager.swift:975-978).
-            monitors = [monitors.First(monitor => monitor.IsCursorMonitor)];
+            enumeratedMonitors = [enumeratedMonitors.First(monitor => monitor.IsCursorMonitor)];
         }
+        IReadOnlyList<PlannedCapture> capturePlan = ScreenCapturePlanning.PlanCaptures(
+            enumeratedMonitors.Select(monitor => new CaptureMonitor(new PixelSize(monitor.Bounds.Width, monitor.Bounds.Height), monitor.IsCursorMonitor)).ToList());
+        IReadOnlyList<DisplayMonitor> monitors = capturePlan.Select(plannedCapture => enumeratedMonitors[plannedCapture.MonitorIndex]).ToList();
         latestExchangeMonitors = monitors;
+        report.CaptureTimeline.Add(submitTMs);
         List<(LabeledScreenshot LabeledScreenshot, PixelSize ScreenshotSize)> capturedScreenshots =
-            await CaptureLabeledScreenshotsAsync(monitors, report, cancellationToken);
+            await CaptureLabeledScreenshotsAsync(monitors, capturePlan, report, cancellationToken);
 
         JsonObject requestBody = ClaudeRequestBuilder.BuildStreamingMessagesBody(
             // claudeModel is the effective user-settings model: loaded from the data-directory
@@ -143,6 +148,7 @@ internal sealed class TracerInteractionRunner(
 
     private async Task<List<(LabeledScreenshot LabeledScreenshot, PixelSize ScreenshotSize)>> CaptureLabeledScreenshotsAsync(
         IReadOnlyList<DisplayMonitor> monitors,
+        IReadOnlyList<PlannedCapture> capturePlan,
         TracerRunReport report,
         CancellationToken cancellationToken)
     {
@@ -194,8 +200,8 @@ internal sealed class TracerInteractionRunner(
         for (int monitorIndex = 0; monitorIndex < monitors.Count; monitorIndex++)
         {
             DisplayMonitor monitor = monitors[monitorIndex];
-            PixelSize screenshotSize = ScreenCapturePlanning.ComputeScreenshotSize(monitor.Bounds.Width, monitor.Bounds.Height);
-            string screenLabel = ScreenCapturePlanning.BuildScreenLabel(monitorIndex, monitors.Count, monitor.IsCursorMonitor, screenshotSize);
+            PixelSize screenshotSize = capturePlan[monitorIndex].ScreenshotSize;
+            string screenLabel = capturePlan[monitorIndex].Label;
             double? nonBlackPixelRatio = null;
 
             using SoftwareBitmap? capturedFrame = capturedFrames[monitorIndex];

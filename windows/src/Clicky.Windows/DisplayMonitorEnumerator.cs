@@ -19,10 +19,10 @@ internal sealed record DisplayMonitor(HMONITOR Handle, string DeviceName, Physic
 internal static class DisplayMonitorEnumerator
 {
     /// <summary>
-    /// Every monitor with the cursor's monitor first and the rest in enumeration order, matching the
-    /// macOS ordering (CompanionScreenCaptureUtility.swift:60-68), so "screen 1" is always where the cursor is.
+    /// Every monitor in EnumDisplayMonitors order, with the cursor's monitor flagged. The capture order
+    /// (cursor's monitor first) is Core's <see cref="ScreenCapturePlanning.PlanCaptures"/>.
     /// </summary>
-    public static unsafe IReadOnlyList<DisplayMonitor> EnumerateCursorMonitorFirst(System.Drawing.Point cursorPositionPx)
+    public static unsafe IReadOnlyList<DisplayMonitor> EnumerateMonitors(System.Drawing.Point cursorPositionPx)
     {
         HMONITOR cursorMonitorHandle = PInvoke.MonitorFromPoint(cursorPositionPx, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
 
@@ -39,8 +39,6 @@ internal static class DisplayMonitorEnumerator
 
         return monitorHandles
             .Select(monitorHandle => DescribeMonitorForHandle(monitorHandle, isCursorMonitor: monitorHandle == cursorMonitorHandle))
-            // OrderBy is stable, so the non-cursor monitors keep their enumeration order.
-            .OrderBy(monitor => monitor.IsCursorMonitor ? 0 : 1)
             .ToList();
     }
 

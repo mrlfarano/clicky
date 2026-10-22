@@ -1,12 +1,40 @@
 namespace Clicky.Core;
 
+/// <summary>One monitor as the platform enumerates it: its size in physical pixels and whether the cursor is on it.</summary>
+public readonly record struct CaptureMonitor(PixelSize MonitorSize, bool IsCursorMonitor);
+
+/// <param name="MonitorIndex">Index into the enumerated monitors passed to <see cref="ScreenCapturePlanning.PlanCaptures"/>.</param>
+/// <param name="Label">The full label sent after the image, dimension suffix included.</param>
+public readonly record struct PlannedCapture(int MonitorIndex, PixelSize ScreenshotSize, string Label);
+
 /// <summary>
-/// The platform-neutral parts of CompanionScreenCaptureUtility.swift: how big each screenshot is
-/// and how it is labelled for Claude. The labels tell Claude which coordinate space to answer in.
+/// The platform-neutral parts of CompanionScreenCaptureUtility.swift: which order the screens are sent in,
+/// how big each screenshot is and how it is labelled for Claude. The labels tell Claude which coordinate
+/// space to answer in.
 /// </summary>
 public static class ScreenCapturePlanning
 {
     public const int ScreenshotLongEdgePixels = 1280;
+
+    /// <summary>
+    /// Port of CompanionScreenCaptureUtility.swift:60-111: the cursor's monitor first, the rest in enumeration
+    /// order (Swift's sort leaves their order unspecified; Windows keeps EnumDisplayMonitors order), each with
+    /// its screenshot size and label. Screen numbers in the labels follow this order, so "screen 1" is the cursor's.
+    /// </summary>
+    public static IReadOnlyList<PlannedCapture> PlanCaptures(IReadOnlyList<CaptureMonitor> enumeratedMonitors) =>
+        enumeratedMonitors
+            .Select((monitor, monitorIndex) => (Monitor: monitor, MonitorIndex: monitorIndex))
+            // OrderBy is stable, so the non-cursor monitors keep their enumeration order.
+            .OrderBy(indexedMonitor => indexedMonitor.Monitor.IsCursorMonitor ? 0 : 1)
+            .Select((indexedMonitor, screenIndex) =>
+            {
+                PixelSize screenshotSize = ComputeScreenshotSize(indexedMonitor.Monitor.MonitorSize.Width, indexedMonitor.Monitor.MonitorSize.Height);
+                return new PlannedCapture(
+                    indexedMonitor.MonitorIndex,
+                    screenshotSize,
+                    BuildScreenLabel(screenIndex, enumeratedMonitors.Count, indexedMonitor.Monitor.IsCursorMonitor, screenshotSize));
+            })
+            .ToList();
 
     /// <summary>
     /// Port of CompanionScreenCaptureUtility.swift:83-92. The long edge is always 1280 (smaller monitors

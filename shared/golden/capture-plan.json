@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "seam": "capture-plan",
+  "swiftAnchor": "leanring-buddy/CompanionScreenCaptureUtility.swift:60-111",
+  "description": "Seam 4's capture plan (ScreenCapturePlanning.PlanCaptures): enumerated monitors plus which one holds the cursor → send order (cursor's monitor first, the rest in enumeration order), screenshot size (long edge 1280, short edge Int(1280 / aspect) or Int(1280 * aspect), truncated) and label. Each label carries the ' (image dimensions: WxH pixels)' suffix added at CompanionManager.swift:603-606. input.monitors is in enumeration order; expected.captures is in send order and monitorIndex points back into input.monitors. Expected values are worked out by hand. Parity spec CLA-01.",
+  "cases": [
+    {
+      "id": "single-monitor",
+      "branch": "single-screen-label",
+      "input": { "monitors": [ { "width": 1920, "height": 1080, "isCursorMonitor": true } ] },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 0, "width": 1280, "height": 720, "label": "user's screen (cursor is here) (image dimensions: 1280x720 pixels)" }
+        ]
+      }
+    },
+    {
+      "id": "cursor-on-second-truncated-1512x982",
+      "branch": "cursor-monitor-first",
+      "note": "1512x982 is the MacBook Air 13 panel. 1280 / (1512 / 982) = 831.32, truncated to 831.",
+      "input": {
+        "monitors": [
+          { "width": 1920, "height": 1080, "isCursorMonitor": false },
+          { "width": 1512, "height": 982, "isCursorMonitor": true }
+        ]
+      },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 1, "width": 1280, "height": 831, "label": "screen 1 of 2 — cursor is on this screen (primary focus) (image dimensions: 1280x831 pixels)" },
+          { "monitorIndex": 0, "width": 1280, "height": 720, "label": "screen 2 of 2 — secondary screen (image dimensions: 1280x720 pixels)" }
+        ]
+      }
+    },
+    {
+      "id": "cursor-on-first-stays-first",
+      "branch": "cursor-monitor-first",
+      "input": {
+        "monitors": [
+          { "width": 2560, "height": 1440, "isCursorMonitor": true },
+          { "width": 1920, "height": 1080, "isCursorMonitor": false }
+        ]
+      },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 0, "width": 1280, "height": 720, "label": "screen 1 of 2 — cursor is on this screen (primary focus) (image dimensions: 1280x720 pixels)" },
+          { "monitorIndex": 1, "width": 1280, "height": 720, "label": "screen 2 of 2 — secondary screen (image dimensions: 1280x720 pixels)" }
+        ]
+      }
+    },
+    {
+      "id": "three-monitors-rest-keep-enumeration-order",
+      "branch": "cursor-monitor-first",
+      "note": "The portrait 1080x1920 cursor monitor moves to the front; the other two keep their relative order. Portrait: Int(1280 * 1080 / 1920) = 720.",
+      "input": {
+        "monitors": [
+          { "width": 3840, "height": 2160, "isCursorMonitor": false },
+          { "width": 1366, "height": 768, "isCursorMonitor": false },
+          { "width": 1080, "height": 1920, "isCursorMonitor": true }
+        ]
+      },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 2, "width": 720, "height": 1280, "label": "screen 1 of 3 — cursor is on this screen (primary focus) (image dimensions: 720x1280 pixels)" },
+          { "monitorIndex": 0, "width": 1280, "height": 720, "label": "screen 2 of 3 — secondary screen (image dimensions: 1280x720 pixels)" },
+          { "monitorIndex": 1, "width": 1280, "height": 719, "label": "screen 3 of 3 — secondary screen (image dimensions: 1280x719 pixels)" }
+        ]
+      }
+    },
+    {
+      "id": "truncates-not-rounds-1366x768",
+      "branch": "landscape-truncated",
+      "note": "1280 / (1366 / 768) = 719.65: rounding would give 720, truncation gives 719.",
+      "input": { "monitors": [ { "width": 1366, "height": 768, "isCursorMonitor": true } ] },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 0, "width": 1280, "height": 719, "label": "user's screen (cursor is here) (image dimensions: 1280x719 pixels)" }
+        ]
+      }
+    },
+    {
+      "id": "portrait-truncated-982x1512",
+      "branch": "portrait-truncated",
+      "note": "Height is the long edge: Int(1280 * 982 / 1512) = Int(831.32) = 831.",
+      "input": { "monitors": [ { "width": 982, "height": 1512, "isCursorMonitor": true } ] },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 0, "width": 831, "height": 1280, "label": "user's screen (cursor is here) (image dimensions: 831x1280 pixels)" }
+        ]
+      }
+    },
+    {
+      "id": "small-monitor-scaled-up",
+      "branch": "landscape-scaled-up",
+      "note": "The long edge is always 1280, so a 1024x768 monitor is scaled up to 1280x960, as on macOS.",
+      "input": { "monitors": [ { "width": 1024, "height": 768, "isCursorMonitor": true } ] },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 0, "width": 1280, "height": 960, "label": "user's screen (cursor is here) (image dimensions: 1280x960 pixels)" }
+        ]
+      }
+    },
+    {
+      "id": "square-uses-landscape-branch",
+      "branch": "width-equals-height",
+      "note": "display.width >= display.height, so a square monitor takes the landscape branch: 1280x1280.",
+      "input": { "monitors": [ { "width": 1000, "height": 1000, "isCursorMonitor": true } ] },
+      "expected": {
+        "captures": [
+          { "monitorIndex": 0, "width": 1280, "height": 1280, "label": "user's screen (cursor is here) (image dimensions: 1280x1280 pixels)" }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "schema": 1,
+  "seam": "claude-request",
+  "swiftAnchor": "leanring-buddy/ClaudeAPI.swift:51-148",
+  "description": "CLA-02 /chat request body. Each case's input is a model, conversation history (oldest first), the labelled screenshots in capture order and the transcript T; the system prompt is always shared/prompts/companion-voice-response.txt. Image bytes are stubbed as short hex sequences carrying a PNG (89 50 4E 47) or JPEG (FF D8 FF) magic, so expected.messages pins the exact base64. expected.mediaTypes is the sniffed media_type per input image (ClaudeAPI.swift:51-62: PNG when the first four bytes are 89 50 4E 47, otherwise JPEG). Body shape: ClaudeAPI.swift:112-148.",
+  "cases": [
+    {
+      "id": "no-history-one-monitor",
+      "branch": "empty-history",
+      "note": "The tracer shape: one monitor, no prior exchanges, so messages is the single image-bearing user turn.",
+      "input": {
+        "model": "claude-sonnet-4-6",
+        "conversationHistory": [],
+        "images": [
+          { "bytesHex": "FFD8FFE0", "label": "user's screen (cursor is here) (image dimensions: 1280x800 pixels)" }
+        ],
+        "userPrompt": "what's on my screen?"
+      },
+      "expected": {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "stream": true,
+        "mediaTypes": [ "image/jpeg" ],
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "/9j/4A==" } },
+              { "type": "text", "text": "user's screen (cursor is here) (image dimensions: 1280x800 pixels)" },
+              { "type": "text", "text": "what's on my screen?" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "history-two-monitors-png-and-jpeg",
+      "branch": "history+multi-monitor",
+      "note": "Two prior exchanges become four plain-string turns with no images; the current turn carries [image, text(label)] per monitor in capture order, then text(T).",
+      "input": {
+        "model": "claude-opus-4-6",
+        "conversationHistory": [
+          { "userTranscript": "how do i commit", "assistantResponse": "click the source control menu up top and hit commit." },
+          { "userTranscript": "and push?", "assistantResponse": "same menu, just pick push." }
+        ],
+        "images": [
+          { "bytesHex": "89504E470D0A1A0A", "label": "screen 1 of 2 — cursor is on this screen (primary focus) (image dimensions: 1280x720 pixels)" },
+          { "bytesHex": "FFD8FFDB", "label": "screen 2 of 2 — secondary screen (image dimensions: 1024x768 pixels)" }
+        ],
+        "userPrompt": "where's the terminal?"
+      },
+      "expected": {
+        "model": "claude-opus-4-6",
+        "max_tokens": 1024,
+        "stream": true,
+        "mediaTypes": [ "image/png", "image/jpeg" ],
+        "messages": [
+          { "role": "user", "content": "how do i commit" },
+          { "role": "assistant", "content": "click the source control menu up top and hit commit." },
+          { "role": "user", "content": "and push?" },
+          { "role": "assistant", "content": "same menu, just pick push." },
+          {
+            "role": "user",
+            "content": [
+              { "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo=" } },
+              { "type": "text", "text": "screen 1 of 2 — cursor is on this screen (primary focus) (image dimensions: 1280x720 pixels)" },
+              { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "/9j/2w==" } },
+              { "type": "text", "text": "screen 2 of 2 — secondary screen (image dimensions: 1024x768 pixels)" },
+              { "type": "text", "text": "where's the terminal?" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "media-type-sniff-edges",
+      "branch": "png-signature-boundaries",
+      "note": "Only a full 89 50 4E 47 prefix sniffs as PNG: exactly those four bytes is PNG, three of them (Swift's count >= 4 guard) or a wrong fourth byte falls back to JPEG.",
+      "input": {
+        "model": "claude-sonnet-4-6",
+        "conversationHistory": [
+          { "userTranscript": "hi", "assistantResponse": "hey!" }
+        ],
+        "images": [
+          { "bytesHex": "89504E47", "label": "screen 1 of 3 — cursor is on this screen (primary focus) (image dimensions: 800x600 pixels)" },
+          { "bytesHex": "89504E", "label": "screen 2 of 3 — secondary screen (image dimensions: 800x600 pixels)" },
+          { "bytesHex": "89504E46", "label": "screen 3 of 3 — secondary screen (image dimensions: 800x600 pixels)" }
+        ],
+        "userPrompt": "which one is png?"
+      },
+      "expected": {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "stream": true,
+        "mediaTypes": [ "image/png", "image/jpeg", "image/jpeg" ],
+        "messages": [
+          { "role": "user", "content": "hi" },
+          { "role": "assistant", "content": "hey!" },
+          {
+            "role": "user",
+            "content": [
+              { "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "iVBORw==" } },
+              { "type": "text", "text": "screen 1 of 3 — cursor is on this screen (primary focus) (image dimensions: 800x600 pixels)" },
+              { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "iVBO" } },
+              { "type": "text", "text": "screen 2 of 3 — secondary screen (image dimensions: 800x600 pixels)" },
+              { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "iVBORg==" } },
+              { "type": "text", "text": "screen 3 of 3 — secondary screen (image dimensions: 800x600 pixels)" },
+              { "type": "text", "text": "which one is png?" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

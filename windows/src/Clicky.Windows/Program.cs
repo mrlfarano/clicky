@@ -81,8 +81,10 @@ internal static class Program
             // --debug-crash must run with zero configuration on any machine (it is a crash-reporting test
             // hook, T-016), and it crashes before any request is made, so it takes the inert replay
             // endpoint instead of demanding WorkerBaseUrl like a real live session does. --set-setting
-            // makes no request either; it only loads and writes the user's settings file.
+            // makes no request either; it only loads and writes the user's settings file, and
+            // --debug-update-now only talks to the update feed.
             chatEndpoint = options.IsReplay || options.DebugCrashRequested || options.UserSettingsChange is not null
+                || options.DebugUpdateNowRequested
                 ? ReplayChatEndpoint
                 : settings.TryGetChatEndpoint()
                     ?? throw new CommandLineUsageException("Live mode needs WorkerBaseUrl in appsettings.json set to the deployed Worker's https URL.");
@@ -149,6 +151,22 @@ internal static class Program
             userSettingsStore.Save(updatedUserSettings);
             ClickyLog.Write($"settings: saved {requestedUserSettingsChange.SettingsFileKeyName} to {userSettingsStore.SettingsFilePath}");
             application.Shutdown(exitCode: 0);
+            return;
+        }
+
+        // --debug-update-now (WS-10): one immediate update check and apply through the real service, then exit
+        // so Velopack can swap the current folder behind this process. Exit 0 only when a newer release was
+        // handed over.
+        if (options.DebugUpdateNowRequested)
+        {
+            var debugUpdateService = new ClickyUpdateService(
+                settings.TryGetUpdateFeed(),
+                updateFeed => new VelopackUpdateFeedClient(updateFeed),
+                new CompanionVoiceStateReporter(),
+                timeProvider,
+                ClickyLog.Write);
+            bool updateHandedToVelopack = await debugUpdateService.CheckAndApplyNowAsync(CancellationToken.None);
+            application.Shutdown(updateHandedToVelopack ? 0 : RuntimeFailureExitCode);
             return;
         }
 

@@ -278,9 +278,9 @@
         "Given the coordinator's CommunityToolkit.Mvvm state, when voiceState changes, then CoordinatorReplayTests.VoiceStateTimelineRecorded asserts voiceStateTimeline matches the reducer output."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/CoordinatorReplayTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-07 part 3. The ttsRequests half of PTT-02 completes in T-029. Remove TracerPromptText from appsettings.json once this lands (WS-12 note).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/20",
+      "dev_notes": "Merged after CI green (119+62+1skip). CompanionCoordinator: input events -> pure reducer -> effects executed on dispatcher; MVVM state driven by reducer; scripted repress cancels streamed response; TracerInteractionRunner voiceState assignments removed (source-scan pinned). Gaps with shortcut comments: Started event unsent (ONB-03 transient inactive in shell); analytics properties await T-044; history not in requests (ClaudeRequestBuilder lacks param); cancelled partial bubble text persists until next reply. ObservableProperty field-form needs LangVersion=preview (generator 8.4 limitation noted).",
       "qa_result": null
     },
     {
@@ -841,9 +841,9 @@
         "Given a win-v* tag, when ci.yml is parsed, then UpdateWorkflowTests.TagRunsPackSignUpload asserts pack -> sign -> vpk upload github in that order and the Mac Sparkle feed is untouched."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-10 part 2. Feed is GitHub Releases (vpk upload github, GithubSource); moving the feed later is a config change plus one release. UpdateWorkflowTests live in windows/tests/Clicky.Windows.Tests/UpdateWorkflowTests.cs.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/21",
+      "dev_notes": "Merged after CI green - update-n-to-n1 verified on a real windows-latest runner: pack N, silent install, seeded settings.json, local folder feed with N+1, installed Clicky.exe --debug-update-now (new debug flag -> immediate check + WaitExitThenApplyUpdates), version N+1 asserted + settings hash identical. win-v* tag job: pack -> sign -> vpk upload github (order source-pinned); Sparkle/appcast untouched. Local: dual-pack folder feed + delta verified; upload flags pinned. CI-only: real vpk upload github (needs secrets + tag).",
       "qa_result": null
     },
     {

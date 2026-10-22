@@ -297,9 +297,9 @@
         "Given the Defender scan step, when the run completes, then it covers Setup.exe and the .nupkg and is clean."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-08 part 1. Pin Velopack (MIT; re-verify licence). Version <SemVer>-ci.<run>. A6: unpackaged Win32, no MSIX, no camera capability. The Velopack root under LOCALAPPDATA/Clicky doubles as the settings dir (settings.json, logs and crashes sit beside current). PackagingWorkflowTests live in windows/tests/Clicky.Windows.Tests/PackagingWorkflowTests.cs.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/5",
+      "dev_notes": "Merged after CI green on PR #5 - the windows-build job on that PR ran the NEW workflow, so vpk pack + assert-artifacts + Defender-over-package verified on a real windows-latest runner. Velopack 1.2.161 NuGet (lockstep with vpk pin); VelopackApp.Build().Run() literal first statement of Main; CI Package step: vpk pack --packId Clicky --packVersion 0.1.0-ci.N --packTitle Clicky --runtime win-x64 --channel win-beta --mainExe Clicky.exe. 4 PackagingWorkflowTests + CiWorkflowSource reader (87/87 local incl. real vpk dry-run on this machine). Deviations: installer filename is Clicky-win-beta-Setup.exe (asserted as *-Setup.exe); --runtime win-x64 added (bootstrapper arch); 2 extra tests pin criteria 2+4. vpk 1.2.161 left installed as global dotnet tool locally (useful for T-014).",
       "qa_result": null
     },
     {

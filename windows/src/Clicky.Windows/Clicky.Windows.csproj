@@ -16,6 +16,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ObservableObject + [ObservableProperty] for CompanionCoordinator's reducer-driven state (audit G9, MIT). -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.183" PrivateAssets="all" />
     <!-- WASAPI shared-mode mic capture + MMDeviceEnumerator/IMMNotificationClient (WS-13/T-020, audit row F1).
          NAudio is MIT; the choice over raw CsWin32 bindings is justified in NAudioMicrophoneCapture.cs.

@@ -43,9 +43,9 @@ internal sealed class TracerRunReport
     public string? Error { get; set; }
 
     // The phase-6 report fields (WS-04 part 2): present as arrays in every report, populated only by the
-    // pieces that own them. voiceStateTimeline holds the scripted input events this task delivers (T-012's
-    // coordinator fills in the full state machine); the three sink-backed arrays hold what the in-memory
-    // stub sinks recorded (T-029 and T-044 replace the stubs with the real TTS and PostHog sinks).
+    // pieces that own them. voiceStateTimeline holds every voice-state change CompanionCoordinator's reducer
+    // made; the three sink-backed arrays hold what the in-memory stub sinks recorded (T-029 and T-044
+    // replace the stubs with the real TTS and PostHog sinks).
     public List<VoiceStateTimelineEntry> VoiceStateTimeline { get; } = [];
     public List<AnalyticsEventReport> AnalyticsEvents { get; } = [];
     public List<TtsRequestReport> TtsRequests { get; } = [];
@@ -97,9 +97,8 @@ internal sealed record DisplayTimelineEntry(long TMs, long EventTMs, string Text
 
 /// <summary>
 /// One voiceState change with its milliseconds on the virtual clock that times the interaction (the same
-/// TimeProvider that paces the SSE stream). Parity spec PTT-01: a press starts recording ("listening"), a
-/// release starts finalization ("processing"); the T-002 stub records one entry per scripted input event,
-/// and T-012's session coordinator replaces it with the full reducer-driven timeline.
+/// TimeProvider that paces the SSE stream), recorded by CompanionCoordinator whenever the session reducer
+/// changes it. A change caused by a scripted input event carries that event's scheduled tMs.
 /// </summary>
 internal sealed record VoiceStateTimelineEntry(long TMs, string State);
 

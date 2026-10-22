@@ -158,9 +158,9 @@
         "Given --debug-stall-hook-once on an input desktop, when SendInput presses fire, then HookSendInputSmokeTests (trait Desktop, skipped without an input desktop) asserts 'hook stalled (debug)', 'watchdog: hook reinstalled', 'ptt pressed' in order."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/HookRecoveryTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-03 part 2. The shortcut settings key lands in T-017/T-018; hot-swap here uses the channel only. QA-matrix: ADR acceptance 3-6, PTT-08 (elevated window), sleep/resume and lock/unlock, first press after each activates.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/14",
+      "dev_notes": "Completed from quota-orphaned WIP via claude -p Opus (ZCode agents quota-dead to 2026-10-27). Original agent: resume/unlock reinstall + translator reset, channel hot-swap, transitions-only logging. Completion: hang fixed (live-input smoke test opt-in via CLICKY_RUN_INTERACTIVE_SMOKE=1, skips without input desktop); SECOND BUG found+fixed: SendInput struct 48B vs required 40B (all simulated input would have been rejected) - size now pinned by always-on test; watchdog DispatcherTimer -> one-shot TimeProvider timer with hook-thread affinity (T-001 deferral resolved); TestProcessDataDirectory fixture isolates in-process test logs from real LOCALAPPDATA. 93+44 passed+1 designed skip, clean rebuild, bounded run. OPEN for phase 7: AC4 live smoke + watchdog coverage need interactive VM with CLICKY_RUN_INTERACTIVE_SMOKE=1; ChangeShortcut not yet called by app (panel wiring lands T-022+/WS-19). PM note: PR #14 hit a GitHub Actions glitch (pull_request run lost 2 job conclusions while run-level said success; rerun-failed-jobs 403 on a success run) - resolved by empty-commit retrigger; fresh run green in 4 min. Also carried PM bookkeeping commits (bookkeeping rides PRs since enforce_admins=true).",
       "qa_result": null
     },
     {

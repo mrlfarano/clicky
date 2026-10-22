@@ -7,7 +7,9 @@ Last updated: 2026-10-22 — PM
 
 ## Current phase
 
-**Phase 6 — Development, wave 1 in flight.** Done so far (each: worktree → implement → tests → PR → CI green → squash-merge → tasks.json recorded): **T-006** (PR [#1](https://github.com/mrlfarano/clicky/pull/1)), **T-019** (PR [#2](https://github.com/mrlfarano/clicky/pull/2)), **T-017** (PR [#3](https://github.com/mrlfarano/clicky/pull/3), GoldenVectors.cs conflict with T-006 resolved locally, 78/78 Core tests post-merge). In flight (4 parallel dev agents in isolated worktrees): T-001 replay-manifest, T-003 overlay placement, T-013 Velopack CI, T-016 crash reporting. Blocked on macOS: T-008, T-009. Phases 0–5 all green.
+**Phase 6 — Development, wave 1 COMPLETE (7/7), wave 2 IN FLIGHT (6 agents).** Wave 1 merges (all CI-green squash-merges, tasks.json recorded): T-006 [#1](https://github.com/mrlfarano/clicky/pull/1), T-019 [#2](https://github.com/mrlfarano/clicky/pull/2), T-017 [#3](https://github.com/mrlfarano/clicky/pull/3), T-003 [#4](https://github.com/mrlfarano/clicky/pull/4), T-013 [#5](https://github.com/mrlfarano/clicky/pull/5) (Velopack `Setup.exe` verified on real runner), T-016 [#6](https://github.com/mrlfarano/clicky/pull/6), T-001 [#7](https://github.com/mrlfarano/clicky/pull/7). Suite after wave 1: 91 Core + 17 Windows = 108/108. Wave 2 in flight: T-002 (harness flags + stub sinks), T-004 (overlay redesign — program's #1 risk), T-007 (hook hardening), T-014 (installed-copy CI smoke test), T-018 (atomic settings persistence), T-020 (WASAPI mic capture). Blocked on macOS: T-008, T-009.
+
+**Merge-craft notes for wave 2 shepherding:** several wave-2 tasks touch `Program.cs`/settings (T-002, T-004, T-007, T-018) — expect conflicts; resolve locally, clean-rebuild (`rm -rf` bin/obj) then full suite before merge (a stale-artifact build once masked a duplicate type: T-001 vs T-016 `ClickyProcessRun`, caught by clean rebuild, renamed `ClickyStartupFailureRun`). Process-launching test classes must all join `ClickyProcessReplayCollection`.
 
 ## Phase / gate ledger
 

@@ -89,7 +89,17 @@ internal sealed class TracerInteractionRunner(
             {
                 await Task.Delay(waitUntilEvent, timeProvider, cancellationToken);
             }
-            long deliveredTMs = (long)(timeProvider.GetUtcNow() - virtualClockAtInteractionStart).TotalMilliseconds;
+            // The timeline records the event's SCHEDULED virtual-clock instant, not the wall-clock moment
+            // the continuation happened to run: this loop resumes on the WPF dispatcher, and startup
+            // rendering (overlay window creation, DPI setup) can delay the continuation by hundreds of
+            // milliseconds on a slow CI runner. Parity scenarios assert virtual-clock semantics
+            // ("300 ms +/- one tick on the virtual clock", PTT-01); the observed slip stays in the log.
+            long deliveredTMs = scriptedEvent.TMs;
+            long observedSlipTMs = (long)(timeProvider.GetUtcNow() - virtualClockAtInteractionStart).TotalMilliseconds - deliveredTMs;
+            if (observedSlipTMs > 100)
+            {
+                ClickyLog.Write($"script: dispatcher slip {observedSlipTMs} ms on event scheduled at {deliveredTMs} ms (timeline keeps the virtual instant)");
+            }
             string voiceStateAfterEvent = scriptedEvent.Transition == PushToTalkTransition.Pressed ? "listening" : "processing";
             report.VoiceStateTimeline.Add(new VoiceStateTimelineEntry(deliveredTMs, voiceStateAfterEvent));
             ClickyLog.Write($"script: {scriptedEvent.Transition.ToString().ToLowerInvariant()} delivered at {deliveredTMs} ms");

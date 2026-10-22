@@ -81,6 +81,64 @@ public sealed class ReplayEndToEndTests
         }
     }
 
+    // T-024 / parity CLA-01: the screens are captured when a transcript is submitted (CompanionManager.swift:520-524,
+    // 596), never at the press. The tracer prompt is submitted at tMs 0; the scripted press at 300 only starts
+    // recording, and its release at 600 submits the stub transcript.
+    [Fact]
+    public async Task CaptureHappensAtSubmit()
+    {
+        string scriptPath = Path.Combine(Path.GetTempPath(), $"clicky-replay-script-{Guid.NewGuid():N}.json");
+        File.WriteAllText(scriptPath, """{ "events": [ { "tMs": 300, "type": "press" }, { "tMs": 600, "type": "release" } ] }""");
+        ReplayRun replayRun;
+        try
+        {
+            replayRun = await ClickyReplayProcess.RunAsync("point-basic.sse", "--script", scriptPath);
+        }
+        finally
+        {
+            File.Delete(scriptPath);
+        }
+        JsonNode report = replayRun.Report;
+        Assert.True(replayRun.ExitCode == 0, $"exit code {replayRun.ExitCode}. Output:\n{replayRun.ProcessOutput}");
+
+        Assert.Equal([0L, 600L], report["captureTimeline"]!.AsArray().Select(captureTMs => (long)captureTMs!));
+
+        // The latest exchange's images: cursor's monitor first, sizes and labels worked out here from the
+        // monitor rects, not by ScreenCapturePlanning.
+        JsonArray monitors = report["monitors"]!.AsArray();
+        Assert.True((bool)monitors[0]!["isCursorMonitor"]!);
+        Assert.Single(monitors, monitor => (bool)monitor!["isCursorMonitor"]!);
+        JsonArray contentBlocks = report["requestBody"]!["messages"]![0]!["content"]!.AsArray();
+        int contentBlockIndex = 0;
+        for (int monitorIndex = 0; monitorIndex < monitors.Count; monitorIndex++)
+        {
+            JsonNode monitor = monitors[monitorIndex]!;
+            int monitorWidth = (int)monitor["rectPx"]!["width"]!;
+            int monitorHeight = (int)monitor["rectPx"]!["height"]!;
+            double aspectRatio = (double)monitorWidth / monitorHeight;
+            (int expectedWidth, int expectedHeight) = monitorWidth >= monitorHeight
+                ? (1280, (int)(1280 / aspectRatio))
+                : ((int)(1280 * aspectRatio), 1280);
+            string screenLabel = monitors.Count == 1 ? "user's screen (cursor is here)"
+                : monitorIndex == 0 ? $"screen 1 of {monitors.Count} — cursor is on this screen (primary focus)"
+                : $"screen {monitorIndex + 1} of {monitors.Count} — secondary screen";
+            string expectedLabel = $"{screenLabel} (image dimensions: {expectedWidth}x{expectedHeight} pixels)";
+            Assert.Equal(expectedLabel, (string?)monitor["label"]);
+
+            // A monitor whose capture failed (see captureErrors) keeps its screen number but sends no image.
+            if (monitor["nonBlackPixelRatio"] is null)
+            {
+                continue;
+            }
+            JsonNode imageData = contentBlocks[contentBlockIndex]!["source"]!["data"]!;
+            Assert.Equal(expectedWidth, (int)imageData["width"]!);
+            Assert.Equal(expectedHeight, (int)imageData["height"]!);
+            Assert.Equal(expectedLabel, (string?)contentBlocks[contentBlockIndex + 1]!["text"]);
+            contentBlockIndex += 2;
+        }
+        Assert.Equal(contentBlockIndex + 1, contentBlocks.Count);
+    }
+
     [Fact]
     public async Task EventDelayReplayRendersTheFirstTokenBeforeTheStreamEnds()
     {

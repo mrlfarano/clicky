@@ -64,6 +64,9 @@ internal sealed partial class CompanionCoordinator(
     /// <summary>The reducer's DismissPanel (a push-to-talk press, CompanionManager.swift:491-492); live mode hides the panel on it.</summary>
     public event Action? PanelDismissRequested;
 
+    /// <summary>Live mode points this at <see cref="OnboardingFlow.IsOnboardingShowing"/>; presses are ignored while it is true.</summary>
+    public Func<bool> IsOnboardingShowing { get; set; } = () => false;
+
     public IReadOnlyList<VoiceStateTimelineEntry> VoiceStateTimeline => voiceStateTimeline;
 
     private long ElapsedTMs => (long)(timeProvider.GetUtcNow() - virtualClockOrigin).TotalMilliseconds;
@@ -175,6 +178,13 @@ internal sealed partial class CompanionCoordinator(
     private void Dispatch(CompanionSessionEvent sessionEvent, long eventTMs)
     {
         overlayWindow.Dispatcher.VerifyAccess();
+        // CompanionManager.swift:477-478: the press is dropped before push_to_talk_started, but its release still
+        // reaches the reducer, which tracks push_to_talk_released for every release (AN-02).
+        if (sessionEvent is CompanionSessionEvent.ShortcutPressed && IsOnboardingShowing())
+        {
+            ClickyLog.Write("ptt press ignored: onboarding is showing");
+            return;
+        }
         pendingSessionEvents.Enqueue((sessionEvent, eventTMs));
         if (isReducing)
         {

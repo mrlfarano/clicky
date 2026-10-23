@@ -873,7 +873,7 @@
     },
     {
       "id": "T-038",
-      "title": "Spike onboarding video host and add ff.mp3 fade and 40 s demo trigger",
+      "title": "Add onboarding music fade (ff.mp3) and record the owner decision dropping the onboarding video",
       "priority": 4,
       "effort": "M",
       "depends_on": [
@@ -889,14 +889,13 @@
       ],
       "acceptance_criteria": [
         "Given a virtual clock, when music starts at volume 0.3, then OnboardingTimingTests.MusicFadesOver3sAfter90s asserts volume 0.3 until 90 s, then a fade to 0 by 93 s.",
-        "Given the video host abstraction with a fake host, when playback passes 40 s, then OnboardingTimingTests.DemoFiresAt40sPlusMinus1s asserts the demo trigger fires once in [39 s, 41 s].",
-        "Given the spike result, when docs/adr/001-windows-strategy.md is read, then OnboardingTimingTests.SpikeVerdictRecorded asserts a section naming the winner (WebView2+hls.js, MediaPlayerElement or browser).",
-        "Given ff.mp3, when the project is built, then OnboardingTimingTests.FfMp3IsContentFile asserts it is copied to the output."
+        "Given ff.mp3, when the project is built, then OnboardingTimingTests.FfMp3IsContentFile asserts it is copied to the output.",
+        "Given the owner decision of 2026-10-23, when docs/02-parity-spec.md ONB-01/ONB-05 and docs/adr/001-windows-strategy.md are read, then OnboardingTimingTests.OwnerDecisionRecorded asserts an addendum states the onboarding video is DROPPED on Windows (no video host, no 40 s demo trigger; onboarding_video_completed never fires)."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/OnboardingTimingTests.cs",
       "status": "todo",
       "pr": null,
-      "dev_notes": "WS-22 part 1 (E8 spike, F6, A8). Order: WebView2 + hls.js (Apache-2.0; bootstrap the runtime via Velopack - verify), then XAML Island MediaPlayerElement, then browser. Winner needs a 40 s trigger, an end event and volume fades. QA-matrix: video plays (or the recorded fallback) on 1903 and Win11.",
+      "dev_notes": "RESCOPED by owner decision 2026-10-23: the onboarding VIDEO is removed from the Windows app entirely after an in-flight spike opened a video window on the owner desktop. The original spike (WebView2/hls.js host + 40 s trigger) was discarded uncommitted; nothing video-related exists in the committed tree.",
       "qa_result": null
     },
     {
@@ -914,13 +913,13 @@
       "acceptance_criteria": [
         "Given an email, when submitted, then OnboardingFlowTests.EmailPostsFormSparkAndIdentifies asserts a FormSpark POST with the email, an identify event and hasSubmittedEmail=true, and that a blank value is rejected.",
         "Given Start clicked, when handled, then OnboardingFlowTests.StartPersistsAndFiresEvents asserts hasCompletedOnboarding=true, onboarding_started and the panel dismissed.",
-        "Given the video playing, when push-to-talk is pressed, then OnboardingFlowTests.PttIgnoredWhileVideoPlays asserts no push_to_talk_started and that push_to_talk_released still emits (AN-02).",
-        "Given the video ends, when 2.3 s elapse on a fake clock, then OnboardingFlowTests.ClosingPromptAfterVideo asserts 'press Ctrl + Alt and introduce yourself' appears and dismisses after 10 s, and Watch Onboarding Again fires onboarding_replayed."
+        "Given onboarding is showing (no video exists on Windows - owner decision 2026-10-23), when push-to-talk is pressed, then OnboardingFlowTests.PttIgnoredWhileOnboarding asserts no push_to_talk_started and that push_to_talk_released still emits (AN-02).",
+        "Given onboarding completes, when 2.3 s elapse on a fake clock, then OnboardingFlowTests.ClosingPromptAfterOnboarding asserts the closing prompt appears and dismisses after 10 s, and Watch Onboarding Again fires onboarding_replayed (no video replay: the button re-runs the static onboarding)."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/OnboardingFlowTests.cs",
       "status": "todo",
       "pr": null,
-      "dev_notes": "WS-22 part 2. Windows copy 'Ctrl + Alt'; adds a 'pin the tray icon' step. QA-matrix: recordings of ONB-01 and ONB-05; settings file before and after.",
+      "dev_notes": "RESCOPED by owner decision 2026-10-23: video-dependent ACs reworded to the no-video onboarding (video dropped on Windows; onboarding_video_completed never fires).",
       "qa_result": null
     },
     {

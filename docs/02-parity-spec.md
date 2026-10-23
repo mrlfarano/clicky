@@ -343,7 +343,7 @@ Swift: [ClaudeAPI.swift:101-212](../leanring-buddy/ClaudeAPI.swift#L101-L212), [
 
 ## 4. POINT parsing and pointing (PNT)
 
-Parser: [CompanionManager.swift:784-823](../leanring-buddy/CompanionManager.swift#L784-L823). The regex at [:786](../leanring-buddy/CompanionManager.swift#L786) is ported verbatim (audit G6). Mapping: [:638-677](../leanring-buddy/CompanionManager.swift#L638-L677), with a duplicate at [:999-1013](../leanring-buddy/CompanionManager.swift#L999-L1013) (seam 3). All PNT parser vectors land in **3c** in `shared/golden/point-tag.json`, run by Core and by XCTest on a Mac.
+Parser: [CompanionManager.swift:784-823](../leanring-buddy/CompanionManager.swift#L784-L823). The regex at [:786](../leanring-buddy/CompanionManager.swift#L786) is ported verbatim (audit G6). Mapping: [:638-677](../leanring-buddy/CompanionManager.swift#L638-L677), with a duplicate at [:958-973](../leanring-buddy/CompanionManager.swift#L958-L973) (seam 3). All PNT parser vectors land in **3c** in `shared/golden/point-tag.json`, run by Core and by XCTest on a Mac.
 
 **PNT-01 · Valid tag (all branches of the parser)**
 
@@ -543,7 +543,7 @@ Swift: [MenuBarPanelManager.swift](../leanring-buddy/MenuBarPanelManager.swift),
 - **When** the demo fires.
 - **Then**:
   - Only the **cursor's monitor** is captured and sent, with the onboarding-demo system prompt (`shared/prompts/onboarding-demo.txt`, moved from [CompanionManager.swift:950-962](../leanring-buddy/CompanionManager.swift#L950-L962)) and the user text `look around my screen and find something interesting to point at` ([:964-990](../leanring-buddy/CompanionManager.swift#L964-L990)).
-  - A parsed coordinate is mapped as in PNT-03, and the bubble shows Claude's comment ([:992-1019](../leanring-buddy/CompanionManager.swift#L992-L1019)).
+  - A parsed coordinate is mapped as in PNT-03, and the bubble shows Claude's comment ([:955-985](../leanring-buddy/CompanionManager.swift#L955-L985)).
   - With no coordinate, nothing happens.
   - `onboarding_demo_triggered` fires.
 - **Fixture & harness**: Replay with `shared/fixtures/sse/onboarding-demo.sse` and `--debug-trigger-onboarding-demo` (Lands 6). Assert `requestBody` has 1 image and `point.screenIndex == 0`.

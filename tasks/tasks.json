@@ -893,9 +893,9 @@
         "Given the owner decision of 2026-10-23, when docs/02-parity-spec.md ONB-01/ONB-05 and docs/adr/001-windows-strategy.md are read, then OnboardingTimingTests.OwnerDecisionRecorded asserts an addendum states the onboarding video is DROPPED on Windows (no video host, no 40 s demo trigger; onboarding_video_completed never fires)."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/OnboardingTimingTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "RESCOPED by owner decision 2026-10-23: the onboarding VIDEO is removed from the Windows app entirely after an in-flight spike opened a video window on the owner desktop. The original spike (WebView2/hls.js host + 40 s trigger) was discarded uncommitted; nothing video-related exists in the committed tree.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/41",
+      "dev_notes": "RESCOPED+merged: music fade (0.3 to 0 over 90-93s virtual clock, IAudioOutput volume), ff.mp3 content, owner-decision addenda in spec+ADR (video DROPPED). Original video spike discarded uncommitted after it opened a video on the owner desktop; committed tree audited video-free.",
       "qa_result": null
     },
     {
@@ -940,9 +940,9 @@
         "Given the demo fires, when replayed, then OnboardingDemoReplayTests asserts analyticsEvents contains onboarding_demo_triggered and the user text is 'look around my screen and find something interesting to point at'."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/OnboardingDemoReplayTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-22 part 3. Prompt copied verbatim from the Swift literal.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/42",
+      "dev_notes": "onboarding-demo.sse (POINT screen 0, 1 image), no-coordinate fixture, prompt byte-equality vs Swift literal, demo replay asserts onboarding_demo_triggered + exact user text.",
       "qa_result": null
     },
     {

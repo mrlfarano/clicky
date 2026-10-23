@@ -1,5 +1,7 @@
 <!-- The panel's content (CompanionPanelView.swift), bound to PanelViewModel. Its window is CompanionPanelWindow.
-     shortcut: colours are the DS hex values inline and controls use stock templates; T-033 ports the DS tokens and styles. -->
+     Colours, radii and icons come from DesignSystem.xaml. Every interactive control carries an AutomationProperties.Name
+     and every button a tooltip, which PanelAccessibilityTests walks for. "Show Clicky" is deliberately absent: the Mac
+     never renders its toggle (CompanionPanelView.swift:52-59, ONB-03). -->
 <UserControl x:Class="Clicky.Windows.CompanionPanelView"
              x:ClassModifier="internal"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -7,85 +9,220 @@
              xmlns:core="clr-namespace:Clicky.Core;assembly=Clicky.Core"
              xmlns:local="clr-namespace:Clicky.Windows">
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="DesignSystem.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+            <Style x:Key="IconGlyphStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{StaticResource DsIconFontFamily}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+            </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
-    <StackPanel>
-        <!-- Header: status dot, title, status text and × (CompanionPanelView.swift:85-117). -->
-        <DockPanel>
-            <Button x:Name="CloseButton" x:FieldModifier="internal" DockPanel.Dock="Right" Content="×" FontSize="14"
-                    Width="24" Height="24" Foreground="#6B736F" Background="Transparent" BorderThickness="0"
-                    AutomationProperties.Name="Close panel" />
-            <TextBlock DockPanel.Dock="Right" Text="{Binding PanelStatus.StatusText}" FontSize="12" FontWeight="Medium"
-                       Foreground="#6B736F" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <!-- The dot colour follows CompanionPanelView.swift:728-740 via CompanionPanelStatus. -->
-                <Ellipse Width="8" Height="8" Margin="0,0,8,0">
-                    <Ellipse.Style>
-                        <Style TargetType="Ellipse">
-                            <Setter Property="Fill" Value="#6B736F" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding PanelStatus.StatusDotColor}" Value="{x:Static core:CompanionStatusDotColor.Success}">
-                                    <Setter Property="Fill" Value="#34D399" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding PanelStatus.StatusDotColor}" Value="{x:Static core:CompanionStatusDotColor.Blue400}">
-                                    <Setter Property="Fill" Value="#60A5FA" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Ellipse.Style>
-                </Ellipse>
-                <TextBlock Text="Clicky" FontSize="14" FontWeight="SemiBold" Foreground="#ECEEED" />
+    <Border Background="{StaticResource DsBackground}" CornerRadius="{StaticResource DsCornerRadiusExtraLarge}" Padding="16,12,12,12">
+        <StackPanel>
+            <!-- Header: status dot, title, status text and × (CompanionPanelView.swift:85-117). -->
+            <DockPanel>
+                <Button x:Name="CloseButton" x:FieldModifier="internal" DockPanel.Dock="Right" Style="{StaticResource DsButtonBaseStyle}"
+                        Width="20" Height="20" Background="{StaticResource DsWhite08}" HorizontalContentAlignment="Center"
+                        AutomationProperties.Name="Close panel" ToolTip="Close">
+                    <TextBlock Text="{StaticResource DsIconXmark}" FontFamily="{StaticResource DsIconFontFamily}" FontSize="8" />
+                </Button>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding PanelStatus.StatusText}" FontSize="12" FontWeight="Medium"
+                           Foreground="{StaticResource DsTextTertiary}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- The dot colour follows CompanionPanelView.swift:728-740 via CompanionPanelStatus. -->
+                    <Ellipse Width="8" Height="8" Margin="0,0,8,0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource DsTextTertiary}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PanelStatus.StatusDotColor}" Value="{x:Static core:CompanionStatusDotColor.Success}">
+                                        <Setter Property="Fill" Value="{StaticResource DsSuccess}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding PanelStatus.StatusDotColor}" Value="{x:Static core:CompanionStatusDotColor.Blue400}">
+                                        <Setter Property="Fill" Value="{StaticResource DsBlue400}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="Clicky" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource DsTextPrimary}" />
+                </StackPanel>
+            </DockPanel>
+            <Rectangle Height="1" Fill="{StaticResource DsBorderSubtle}" Margin="0,12,0,0" />
+
+            <!-- Push-to-talk hint once set up (CompanionPanelView.swift:129-133); null means setup copy instead. -->
+            <TextBlock Text="{Binding PushToTalkHintText}" FontSize="12" FontWeight="Medium" Foreground="{StaticResource DsTextSecondary}" Margin="0,16,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PushToTalkHintText}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- Intro before setup (CompanionPanelView.swift:162-179). -->
+            <StackPanel Margin="0,16,0,0" Visibility="{Binding IsIntroCopyVisible, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Text="Hi, I'm Farza. This is Clicky." FontSize="12" FontWeight="Bold" Foreground="{StaticResource DsTextSecondary}" />
+                <TextBlock Text="A side project I made for fun to help me learn stuff as I use my computer." FontSize="11"
+                           Foreground="{StaticResource DsTextTertiary}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                <TextBlock Text="Nothing runs in the background. Clicky will only take a screenshot when you press the hot key. So, you can give that permission in peace. If you are still sus, eh, I can't do much there champ."
+                           FontSize="11" Foreground="{StaticResource DsIntroWarningText}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
-        </DockPanel>
 
-        <!-- Push-to-talk hint once set up (CompanionPanelView.swift:129-133); null means setup copy instead. -->
-        <TextBlock Text="{Binding PanelStatus.PushToTalkHintText}" FontSize="12" FontWeight="Medium" Foreground="#ADB5B2" Margin="0,16,0,0">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding PanelStatus.PushToTalkHintText}" Value="{x:Null}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
-
-        <!-- Revoked after onboarding (CompanionPanelView.swift:150-160); "Grant all four below" becomes microphone-only (PNL-04). -->
-        <StackPanel Margin="0,16,0,0" Visibility="{Binding IsPermissionsRevokedCopyVisible, Converter={StaticResource BooleanToVisibility}}">
-            <TextBlock Text="Permissions needed" FontSize="12" FontWeight="Bold" Foreground="#ADB5B2" />
-            <TextBlock Text="Microphone access was turned off. Grant it below to keep using Clicky." FontSize="11"
-                       Foreground="#6B736F" TextWrapping="Wrap" Margin="0,6,0,0" />
-        </StackPanel>
-
-        <!-- Model picker (CompanionPanelView.swift:601-631). -->
-        <DockPanel Margin="0,12,0,0" Visibility="{Binding IsModelPickerVisible, Converter={StaticResource BooleanToVisibility}}">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <RadioButton GroupName="ClaudeModel" Content="Sonnet" Foreground="#ECEEED" Margin="0,0,10,0"
-                             IsChecked="{Binding IsSonnetSelected, Mode=OneWay}"
-                             Command="{Binding SelectClaudeModelCommand}" CommandParameter="{x:Static local:PanelViewModel.SonnetModelId}" />
-                <RadioButton GroupName="ClaudeModel" Content="Opus" Foreground="#ECEEED"
-                             IsChecked="{Binding IsOpusSelected, Mode=OneWay}"
-                             Command="{Binding SelectClaudeModelCommand}" CommandParameter="{x:Static local:PanelViewModel.OpusModelId}" />
+            <!-- Email step (CompanionPanelView.swift:134-143, 187-222). -->
+            <StackPanel Margin="0,16,0,0" Visibility="{Binding IsEmailStepVisible, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Text="Drop your email to get started." FontSize="12" FontWeight="Medium" Foreground="{StaticResource DsTextSecondary}" />
+                <TextBlock Text="If I keep building this, I'll keep you in the loop." FontSize="11" Foreground="{StaticResource DsTextTertiary}" Margin="0,4,0,0" />
+                <Grid Margin="0,16,0,0">
+                    <TextBox Text="{Binding EmailInput, UpdateSourceTrigger=PropertyChanged}" FontSize="13" Padding="8,6"
+                             Foreground="{StaticResource DsTextPrimary}" CaretBrush="{StaticResource DsTextPrimary}"
+                             Background="{StaticResource DsWhite08}" BorderBrush="{StaticResource DsBorderSubtle}" BorderThickness="0.5"
+                             AutomationProperties.Name="Email address" />
+                    <!-- WPF's TextBox has no placeholder; this stands in for the Swift TextField prompt. -->
+                    <TextBlock Text="Enter your email" FontSize="13" Margin="11,7,0,0" IsHitTestVisible="False" Foreground="{StaticResource DsTextTertiary}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding EmailInput}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+                <Button Content="Submit" Command="{Binding SubmitEmailCommand}" Style="{StaticResource DsAccentButtonStyle}" FontSize="14"
+                        Padding="0,10" Margin="0,8,0,0" AutomationProperties.Name="Submit email" ToolTip="Submit your email" />
             </StackPanel>
-            <TextBlock Text="Model" FontSize="13" FontWeight="Medium" Foreground="#ADB5B2" VerticalAlignment="Center" />
-        </DockPanel>
 
-        <!-- PERMISSIONS (CompanionPanelView.swift:245-262): only the microphone row on Windows. -->
-        <StackPanel Margin="0,16,0,0" Visibility="{Binding IsPermissionsSectionVisible, Converter={StaticResource BooleanToVisibility}}">
-            <TextBlock Text="PERMISSIONS" FontSize="10" FontWeight="SemiBold" Foreground="#6B736F" Margin="0,0,0,6" />
-            <ItemsControl ItemsSource="{Binding PermissionRows}" Focusable="False">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <DockPanel Margin="0,6">
-                            <Button DockPanel.Dock="Right" Content="Grant" Command="{Binding GrantCommand}" FontSize="11"
-                                    FontWeight="SemiBold" Foreground="White" Background="#2563EB" BorderThickness="0" Padding="10,4"
-                                    AutomationProperties.Name="{Binding Title, StringFormat='Grant {0} access'}" />
-                            <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="Medium" Foreground="#ADB5B2" VerticalAlignment="Center" />
-                        </DockPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <!-- Start step (CompanionPanelView.swift:144-148, 223-239). -->
+            <StackPanel Margin="0,16,0,0" Visibility="{Binding IsStartStepVisible, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Text="You're all set. Hit Start to meet Clicky." FontSize="12" FontWeight="Medium" Foreground="{StaticResource DsTextSecondary}" />
+                <Button Content="Start" Command="{Binding StartOnboardingCommand}" Style="{StaticResource DsAccentButtonStyle}" FontSize="14"
+                        Padding="0,10" Margin="0,16,0,0" AutomationProperties.Name="Start" ToolTip="Start onboarding" />
+            </StackPanel>
+
+            <!-- Revoked after onboarding (CompanionPanelView.swift:150-160); "Grant all four below" becomes microphone-only (PNL-04). -->
+            <StackPanel Margin="0,16,0,0" Visibility="{Binding IsPermissionsRevokedCopyVisible, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Text="Permissions needed" FontSize="12" FontWeight="Bold" Foreground="{StaticResource DsTextSecondary}" />
+                <TextBlock Text="Microphone access was turned off. Grant it below to keep using Clicky." FontSize="11"
+                           Foreground="{StaticResource DsTextTertiary}" TextWrapping="Wrap" Margin="0,6,0,0" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsSetupComplete, Converter={StaticResource BooleanToVisibility}}">
+                <!-- Model picker (CompanionPanelView.swift:601-631). -->
+                <DockPanel Margin="0,12,0,0">
+                    <Border DockPanel.Dock="Right" Background="{StaticResource DsWhite06}" BorderBrush="{StaticResource DsBorderSubtle}"
+                            BorderThickness="0.5" CornerRadius="{StaticResource DsCornerRadiusSmall}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton GroupName="ClaudeModel" Content="Sonnet" Style="{StaticResource DsSegmentRadioButtonStyle}"
+                                         IsChecked="{Binding IsSonnetSelected, Mode=OneWay}"
+                                         Command="{Binding SelectClaudeModelCommand}" CommandParameter="{x:Static local:PanelViewModel.SonnetModelId}"
+                                         AutomationProperties.Name="Sonnet model" ToolTip="Answer with Claude Sonnet" />
+                            <RadioButton GroupName="ClaudeModel" Content="Opus" Style="{StaticResource DsSegmentRadioButtonStyle}"
+                                         IsChecked="{Binding IsOpusSelected, Mode=OneWay}"
+                                         Command="{Binding SelectClaudeModelCommand}" CommandParameter="{x:Static local:PanelViewModel.OpusModelId}"
+                                         AutomationProperties.Name="Opus model" ToolTip="Answer with Claude Opus" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="Model" FontSize="13" FontWeight="Medium" Foreground="{StaticResource DsTextSecondary}" VerticalAlignment="Center" />
+                </DockPanel>
+
+                <!-- Push-to-talk shortcut picker, a Windows addition (ADR "configurable from day one"). -->
+                <StackPanel Orientation="Horizontal" Margin="0,12,0,6">
+                    <TextBlock Text="{StaticResource DsIconKeyboard}" Style="{StaticResource IconGlyphStyle}" Foreground="{StaticResource DsTextTertiary}" />
+                    <TextBlock Text="Shortcut" FontSize="13" FontWeight="Medium" Foreground="{StaticResource DsTextSecondary}" />
+                </StackPanel>
+                <Border Background="{StaticResource DsWhite06}" BorderBrush="{StaticResource DsBorderSubtle}" BorderThickness="0.5"
+                        CornerRadius="{StaticResource DsCornerRadiusSmall}" HorizontalAlignment="Left">
+                    <ItemsControl ItemsSource="{Binding ShortcutChoices}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton GroupName="PushToTalkShortcut" Content="{Binding Label}" Style="{StaticResource DsSegmentRadioButtonStyle}"
+                                             IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                             Command="{Binding DataContext.SelectPushToTalkShortcutCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                             CommandParameter="{Binding ShortcutOption}"
+                                             AutomationProperties.Name="{Binding Label, StringFormat='Push to talk with {0}'}"
+                                             ToolTip="{Binding Label, StringFormat='Hold {0} to talk'}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <!-- DM feedback link (CompanionPanelView.swift:646-679). -->
+                <Button Command="{Binding OpenFeedbackLinkCommand}" Style="{StaticResource DsCardButtonStyle}" Margin="0,16,0,0"
+                        AutomationProperties.Name="Got feedback? DM me" ToolTip="Opens x.com/farzatv">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource DsIconBubbleLeftFill}" Style="{StaticResource IconGlyphStyle}" />
+                        <StackPanel>
+                            <TextBlock Text="Got feedback? DM me" FontSize="12" FontWeight="SemiBold" />
+                            <TextBlock Text="Bugs, ideas, anything — I read every message." FontSize="10" Foreground="{StaticResource DsTextTertiary}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- PERMISSIONS (CompanionPanelView.swift:245-262): only the microphone row on Windows. -->
+            <StackPanel Margin="0,16,0,0" Visibility="{Binding IsPermissionsSectionVisible, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Text="PERMISSIONS" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource DsTextTertiary}" Margin="0,0,0,6" />
+                <ItemsControl ItemsSource="{Binding PermissionRows}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="0,6">
+                                <Button DockPanel.Dock="Right" Content="Grant" Command="{Binding GrantCommand}" Style="{StaticResource DsAccentButtonStyle}"
+                                        FontSize="11" Padding="10,4" AutomationProperties.Name="{Binding Title, StringFormat='Grant {0} access'}"
+                                        ToolTip="Opens Windows privacy settings" />
+                                <!-- Only ungranted rows are ever shown, hence the Swift warning colour (CompanionPanelView.swift:445). -->
+                                <TextBlock Text="{StaticResource DsIconMic}" Style="{StaticResource IconGlyphStyle}" Foreground="{StaticResource DsWarning}" />
+                                <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="Medium" Foreground="{StaticResource DsTextSecondary}" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Report a problem (WS-11): always shown, since setup trouble is a problem too. -->
+            <Button Command="{Binding ReportProblemCommand}" Style="{StaticResource DsCardButtonStyle}" Margin="0,12,0,0"
+                    AutomationProperties.Name="Report a problem" ToolTip="Opens your crash reports folder and a prefilled GitHub issue">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{StaticResource DsIconReportProblem}" Style="{StaticResource IconGlyphStyle}" />
+                    <TextBlock Text="Report a problem" FontSize="12" FontWeight="SemiBold" />
+                </StackPanel>
+            </Button>
+
+            <!-- Footer (CompanionPanelView.swift:683-717). -->
+            <Rectangle Height="1" Fill="{StaticResource DsBorderSubtle}" Margin="0,12,0,0" />
+            <DockPanel Margin="0,12,0,0">
+                <Button DockPanel.Dock="Right" Command="{Binding WatchOnboardingAgainCommand}" Style="{StaticResource DsButtonBaseStyle}"
+                        Visibility="{Binding IsWatchOnboardingAgainVisible, Converter={StaticResource BooleanToVisibility}}"
+                        AutomationProperties.Name="Watch Onboarding Again" ToolTip="Replay the onboarding">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource DsIconPlayCircle}" Style="{StaticResource IconGlyphStyle}" FontSize="11" Margin="0,0,6,0" />
+                        <TextBlock Text="Watch Onboarding Again" FontSize="12" FontWeight="Medium" />
+                    </StackPanel>
+                </Button>
+                <Button Command="{Binding QuitCommand}" Style="{StaticResource DsButtonBaseStyle}" HorizontalAlignment="Left"
+                        AutomationProperties.Name="Quit Clicky" ToolTip="Quit Clicky">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource DsIconPower}" Style="{StaticResource IconGlyphStyle}" FontSize="11" Margin="0,0,6,0" />
+                        <TextBlock Text="Quit Clicky" FontSize="12" FontWeight="Medium" />
+                    </StackPanel>
+                </Button>
+            </DockPanel>
         </StackPanel>
-    </StackPanel>
+    </Border>
 </UserControl>

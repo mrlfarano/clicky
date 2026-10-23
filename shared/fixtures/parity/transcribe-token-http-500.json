@@ -1,0 +1,5 @@
+{
+  "status": 500,
+  "headers": { "content-type": "application/json" },
+  "body": "{\"error\":\"TypeError: Network connection lost.\"}"
+}

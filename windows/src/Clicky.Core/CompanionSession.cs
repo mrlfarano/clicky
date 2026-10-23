@@ -81,6 +81,12 @@ public abstract record CompanionSessionEvent
     /// <summary>Finalization ended, by the provider's final transcript or the fallback timer (BuddyDictationManager.swift:581-606).</summary>
     public sealed record TranscriptFinal(string TranscriptText) : CompanionSessionEvent;
 
+    /// <summary>
+    /// The session failed to start or errored with nothing to submit, so dictation resets without a transcript
+    /// (BuddyDictationManager.swift:465-473, 571-578; parity spec STT-08).
+    /// </summary>
+    public sealed record DictationCancelled : CompanionSessionEvent;
+
     /// <summary>The full streamed reply to the chat request with this id, POINT tag included.</summary>
     public sealed record ResponseReady(int ChatRequestId, string FullResponseText) : CompanionSessionEvent;
 
@@ -158,8 +164,10 @@ public sealed record CompanionSessionTransition(CompanionSessionState State, IRe
 /// pure event → (state, effects) function. Events that do not apply to the current state (a stale reply
 /// after a cancel, a transcript nobody is finalizing) change nothing, standing in for Swift's
 /// Task.isCancelled checks (CompanionManager.swift:598, 623, 721).
-/// shortcut: no TtsFailed event yet, so a failed TTS leaves voiceState at responding until the next press;
-/// add it with the TTS-03 error handling (T-029).
+/// A failed TTS needs no event of its own: the shell speaks the fallback voice between TtsStarted and TtsEnded
+/// (TTS-03, T-029). A failed chat request takes the same fallback path (CLA-06, T-027).
+/// shortcut: no ResponseFailed event yet, so a failed request with no fallback utterance leaves voiceState at
+/// processing until the next press; revisit if CLA-06 grows a silent-failure case.
 /// </summary>
 public static class CompanionSession
 {
@@ -181,6 +189,9 @@ public static class CompanionSession
             Transition(state with { DictationPhase = CompanionDictationPhase.Recording, VoiceState = CompanionVoiceState.Listening }),
         CompanionSessionEvent.TranscriptFinal transcriptFinal when state.DictationPhase == CompanionDictationPhase.FinalizingTranscript =>
             TranscriptFinal(state, transcriptFinal.TranscriptText),
+        // A press cleared any reply before dictation began, so idle is all that is left.
+        CompanionSessionEvent.DictationCancelled when state.DictationPhase != CompanionDictationPhase.None =>
+            Transition(state with { DictationPhase = CompanionDictationPhase.None, VoiceState = CompanionVoiceState.Idle }),
         CompanionSessionEvent.ResponseReady responseReady
             when state.ResponsePhase == CompanionResponsePhase.AwaitingChatResponse
                 && responseReady.ChatRequestId == state.LatestChatRequestId =>

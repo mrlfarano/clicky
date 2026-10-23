@@ -183,14 +183,15 @@ public sealed partial class CoordinatorReplayTests
             CompanionSettings.Defaults,
             new ClaudeClient(failClosedHttpClient, new Uri("http://replay.clicky.invalid/chat"), CompanionSettings.DefaultClaudeModel, TimeProvider.System),
             [],
+            [],
             overlayWindow,
             new MonitorScreenCapturer(),
             analyticsSink,
             textToSpeechSink,
             fallbackSpeechSink);
         return new CompanionCoordinator(
-            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink, fallbackSpeechSink,
-            new CompanionVoiceStateReporter());
+            interactionRunner, overlayWindow, "tracer prompt", TimeProvider.System, analyticsSink, textToSpeechSink,
+            fallbackSpeechSink, new SilentReplayAudioOutput(TimeProvider.System), new CompanionVoiceStateReporter());
     }
 
     [GeneratedRegex(@"voiceState\w*\s*=(?!=)", RegexOptions.IgnoreCase)]
@@ -206,10 +207,12 @@ public sealed partial class CoordinatorReplayTests
 
         IReadOnlyList<AnalyticsEventReport> IAnalyticsSink.RecordedEvents => RecordedEvents;
 
-        public void TrackEvent(string eventName, IReadOnlyDictionary<string, string?>? eventProperties = null)
+        public void TrackEvent(AnalyticsEvent analyticsEvent)
         {
             handlerThreadIds.Enqueue(Environment.CurrentManagedThreadId);
-            RecordedEvents.Add(new AnalyticsEventReport(eventName, null));
+            RecordedEvents.Add(AnalyticsEventReport.FromAnalyticsEvent(analyticsEvent));
         }
+
+        public void Identify(AnalyticsIdentify analyticsIdentify) => handlerThreadIds.Enqueue(Environment.CurrentManagedThreadId);
     }
 }

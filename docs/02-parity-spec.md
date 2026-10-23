@@ -78,6 +78,7 @@ Rules:
 | `ttsRequests[]`, `fallbackUtterances[]` | 6 | `/tts` bodies sent, and system-voice fallback strings spoken |
 | `conversationHistory[] {userTranscript, assistantResponse}` | 6 | The reducer's history when the report was written (CLA-06) |
 | `httpRequests[] {method, path}` | 6 | Every request the replay handler received, answered or not: the TLS warm-up `HEAD` and each `/chat` attempt (G2, G3) |
+| `webSocketFrames[] {session, tMs, dir, frame}` | 6 | Every AssemblyAI websocket frame of a replay with a recorded socket, in the recording's line format (section 2) |
 
 ---
 
@@ -167,7 +168,7 @@ Swift detector: `BuddyPushToTalkShortcut` ([BuddyDictationManager.swift:16-200](
 
 Swift: [AssemblyAIStreamingTranscriptionProvider.swift](../leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift) (seam 1 and the turn assembly), and the session lifecycle in [BuddyDictationManager.swift:377-650](../leanring-buddy/BuddyDictationManager.swift#L377-L650). All STT scenarios land in phase 6 (the tracer bullet has no microphone; ADR "OUT").
 
-AssemblyAI recordings use `shared/fixtures/parity/assemblyai-*.jsonl`. Each line is `{"tMs": <offset>, "dir": "in"|"out", "frame": <AssemblyAI JSON or "<binary N bytes>">}`. Replay plays the `in` frames through a fake `ClientWebSocket` transport and asserts the `out` frames.
+AssemblyAI recordings use `shared/fixtures/stt/assemblyai-*.jsonl` (JSONL has no comments, so the format lives here). Each line is `{"tMs": <offset>, "dir": "in"|"out", "frame": <frame>}`, with `tMs` in milliseconds since the session's connect. A `frame` is an AssemblyAI JSON message, or one of three strings: the websocket URL (always the first `out` line), `"<binary N bytes>"` (one PCM16 audio message) or `"<close 1001>"` (the client's going-away close). A `--replay-manifest` stages a recording with `"assemblyaiSocket": {"framesFile": …}`. Replay then runs the real session over a fake transport (`ReplayWebSocketConnector`) and the real microphone pipeline over a fake 16 kHz source. Every session plays the `in` frames at their `tMs`. Nothing is delivered after the client's close, and once the last frame is sent the server stalls until the client closes. The report's `webSocketFrames` holds both directions in the same line format, plus a `session` number. The tests compare its `out` frames with the recording: binary sizes follow the capture timing, so a run of binary frames counts as one entry. The `.jsonl` files were written from the Swift protocol and AssemblyAI v3 message shapes. Re-recording them on the VM (`--record` extended to websocket frames) is still open.
 
 **STT-01 · Session open: token, URL, Begin**
 - **Given** push-to-talk was pressed.
@@ -177,7 +178,7 @@ AssemblyAI recordings use `shared/fixtures/parity/assemblyai-*.jsonl`. Each line
   - The websocket URL is `wss://streaming.assemblyai.com/v3/ws` with query `sample_rate=16000`, `encoding=pcm_s16le`, `format_turns=true`, `speech_model=u3-rt-pro`, `keyterms_prompt=<JSON array>` (only if any keyterms are non-empty) and `token=…` ([:437-477](../leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift#L437-L477)).
   - The session counts as ready on `Begin` or `Termination` ([:249-255](../leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift#L249-L255)).
   - Audio is sent as binary PCM16 mono 16 kHz frames ([:182-196](../leanring-buddy/AssemblyAIStreamingTranscriptionProvider.swift#L182-L196)).
-- **Fixture & harness**: `shared/golden/transcription-keyterms.json` (URL-construction cases), run by Core. Replay with `shared/fixtures/parity/assemblyai-session-basic.jsonl`, asserting the first `out` frame URL and the binary frames.
+- **Fixture & harness**: `shared/golden/transcription-keyterms.json` (URL-construction cases), run by Core. Replay with `shared/fixtures/stt/assemblyai-session-basic.jsonl`, asserting the first `out` frame URL and the binary frames.
 
 **STT-02 · Partial transcripts stream internally but are not shown**
 - **Given** a recording is in progress.
@@ -692,5 +693,5 @@ Lands: `3c` = tracer bullet, `6` = development. "03-plan §x" is a placeholder u
 | `shared/prompts/companion-voice-response.txt` | 3c | CLA-02 |
 | `shared/golden/{assemblyai-turns,transcript-finalize,transcription-keyterms,capture-plan,claude-request,session-reducer,flight-path,settings-defaults,analytics-events}.json` | 6 | STT, CLA, PNT-06, TTS-02, PNL-06, ONB, AN |
 | `shared/prompts/onboarding-demo.txt`, `shared/fixtures/sse/onboarding-demo.sse` | 6 | ONB-02 |
-| `shared/fixtures/parity/{assemblyai-session-basic,assemblyai-final-on-keyup,assemblyai-stall-after-keyup,assemblyai-error-midstream}.jsonl` | 6 | STT |
+| `shared/fixtures/stt/{assemblyai-session-basic,assemblyai-final-on-keyup,assemblyai-stall-after-keyup,assemblyai-error-midstream}.jsonl` | 6 | STT |
 | `shared/fixtures/parity/{transcribe-token-http-500,chat-http-529,tts-ok,tts-http-402}.json`, `tts-ok.mp3` | 6 | STT-08, CLA-06, TTS |

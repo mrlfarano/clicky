@@ -1,0 +1,23 @@
+{"tMs":0,"dir":"out","frame":"wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&encoding=pcm_s16le&format_turns=true&speech_model=u3-rt-pro&keyterms_prompt=%5B%22makesomething%22,%22Learning%20Buddy%22,%22Codex%22,%22Claude%22,%22Anthropic%22,%22OpenAI%22,%22SwiftUI%22,%22Xcode%22,%22Vercel%22,%22Next.js%22,%22localhost%22%5D&token=replay-temporary-token"}
+{"tMs":180,"dir":"in","frame":{"type":"Begin","id":"7f3c2a9e-51d4-4e0b-9a61-2c8f0d4b7e15","expires_at":1760000480}}
+{"tMs":280,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":380,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":480,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":580,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":680,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":700,"dir":"in","frame":{"turn_order":0,"turn_is_formatted":false,"end_of_turn":false,"transcript":"what's","end_of_turn_confidence":0.04,"words":[{"start":420,"end":640,"text":"what's","confidence":0.88,"word_is_final":false}],"type":"Turn"}}
+{"tMs":780,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":880,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":980,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":1000,"dir":"in","frame":{"turn_order":0,"turn_is_formatted":false,"end_of_turn":false,"transcript":"what's on my screen","end_of_turn_confidence":0.31,"words":[],"type":"Turn"}}
+{"tMs":1080,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":1180,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":1280,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":1380,"dir":"out","frame":"<binary 3200 bytes>"}
+{"tMs":1400,"dir":"out","frame":"<binary 640 bytes>"}
+{"tMs":1400,"dir":"out","frame":{"type":"ForceEndpoint"}}
+{"tMs":1650,"dir":"in","frame":{"turn_order":0,"turn_is_formatted":false,"end_of_turn":true,"transcript":"what's on my screen","end_of_turn_confidence":0.93,"words":[],"type":"Turn"}}
+{"tMs":1650,"dir":"out","frame":{"type":"Terminate"}}
+{"tMs":1650,"dir":"out","frame":"<close 1001>"}
+{"tMs":1760,"dir":"in","frame":{"turn_order":0,"turn_is_formatted":true,"end_of_turn":true,"transcript":"What's on my screen?","end_of_turn_confidence":0.93,"words":[],"type":"Turn"}}
+{"tMs":1820,"dir":"in","frame":{"type":"Termination","audio_duration_seconds":1,"session_duration_seconds":2}}

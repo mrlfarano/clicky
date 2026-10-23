@@ -67,6 +67,12 @@ internal sealed class TracerRunReport
     public List<HttpRequestReport> HttpRequests { get; } = [];
 
     /// <summary>
+    /// Every AssemblyAI websocket frame of a replay with a recorded socket, both directions, in the frames-file
+    /// line format plus the 1-based session number (T-023). Empty in live mode and when no socket is staged.
+    /// </summary>
+    public List<WebSocketFrameReport> WebSocketFrames { get; } = [];
+
+    /// <summary>
     /// The user settings this run actually used: the settings the app loaded with every --settings-override
     /// pair applied on top. Shown even when nothing was overridden, so a report always states its settings
     /// the way the parity scenarios read them (CLA-08, ONB-03).
@@ -120,10 +126,21 @@ internal sealed record VoiceStateTimelineEntry(long TMs, string State);
 /// <summary>One analytics event exactly as it was handed to the analytics sink (parity spec AN-01).</summary>
 internal sealed record AnalyticsEventReport(
     string Name,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, string?>? Properties);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonObject? Properties)
+{
+    /// <summary>A copy of the catalogue event; an event without properties reports none, as before T-044.</summary>
+    public static AnalyticsEventReport FromAnalyticsEvent(AnalyticsEvent analyticsEvent) => new(
+        analyticsEvent.EventName,
+        analyticsEvent.EventProperties.Count == 0 ? null : (JsonObject)analyticsEvent.EventProperties.DeepClone());
+}
 
 /// <summary>One request as the replay handler received it: the HTTP method and the URL's absolute path.</summary>
 internal sealed record HttpRequestReport(string Method, string Path);
+
+/// <param name="TMs">Milliseconds since this session's connect.</param>
+/// <param name="Dir">"in" from the server, "out" from the app.</param>
+/// <param name="Frame">A JSON message, "&lt;binary N bytes&gt;", "&lt;close 1001&gt;", or the URL of the session's first out frame.</param>
+internal sealed record WebSocketFrameReport(int Session, long TMs, string Dir, JsonNode? Frame);
 
 /// <summary>One text handed to the TTS sink to be spoken; the /tts request body the real sink would send.</summary>
 internal sealed record TtsRequestReport(string Text);

@@ -773,9 +773,9 @@
         "Given the panel, when rendered, then PanelViewModelTests.ShowClickyToggleNotRendered asserts no Show Clicky control, and Report a problem opens the crash folder and a prefilled GitHub issue URL (fake launcher)."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/PanelAccessibilityTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-19 part 2 (B8-B11). Email field, Quit, Watch Onboarding Again, Report a problem (T-016 output), feedback link, DS tokens as XAML resources, bundled Fluent UI icons. PanelViewModelTests live in windows/tests/Clicky.Windows.Tests/PanelViewModelTests.cs. QA-matrix: Narrator and Tab order on both OSes.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/40",
+      "dev_notes": "DS tokens as resources; shortcut picker (persist + hook hot-swap); Report-a-problem (crash folder + prefilled issue, fake launcher); Show-Clicky ABSENT pinned; automation names + Hand cursor + 0-delay tooltips (STA walk); Quit = ordered shutdown. T-039 stubs: Submit/Start/Watch log-only. QA: Narrator/tab order/Win10 render.",
       "qa_result": null
     },
     {
@@ -866,9 +866,9 @@
         "Given the release notes template, when read by BetaWorkflowTests.NotesMentionSmartScreen, then it includes the 'Windows protected your PC' (More info -> Run anyway) instruction and a SmartScreen-on-clean-VM field."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-21. Needs a working voice loop (WS-14, 16, 17) first. Same signing identity every release; no EV. BetaWorkflowTests live in windows/tests/Clicky.Windows.Tests/BetaWorkflowTests.cs. QA-matrix: record whether SmartScreen warned on a clean VM per release; promote to 'win' once warnings stop or the owner accepts them. Publishing the first signed beta is an owner action.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/39",
+      "dev_notes": "release-gate: unsigned refused before vpk upload (NotSigned check, fork=no-secrets fails with contract message); signed passes with win-beta channel; notes template with SmartScreen Run-anyway + clean-VM field. CI-only: real tag refusal/signed pass/upload/first beta (owner). Gate script never ran locally (sandbox) - tests cover via source reads.",
       "qa_result": null
     },
     {

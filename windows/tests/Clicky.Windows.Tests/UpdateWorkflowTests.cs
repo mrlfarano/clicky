@@ -80,7 +80,7 @@ public sealed class UpdateWorkflowTests
         string releaseJobHeader = CiWorkflowSource.JobHeader("windows-release");
         Assert.Contains("if: startsWith(github.ref, 'refs/tags/win-v')", releaseJobHeader);
         // The upload runs only after windows-build (pack, sign, tests) succeeded, and only it may write.
-        Assert.Contains("needs: windows-build", releaseJobHeader);
+        Assert.Contains("needs: [windows-build, release-gate]", releaseJobHeader);
         Assert.Contains("contents: write", releaseJobHeader);
         Assert.Contains("signing-mode: ${{ steps.sign.outputs.mode }}", CiWorkflowSource.JobHeader("windows-build"));
 

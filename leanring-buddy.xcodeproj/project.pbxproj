@@ -514,7 +514,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Clicky.app/Contents/MacOS/Clicky";
 			};
 			name = Debug;
 		};
@@ -535,7 +535,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Clicky.app/Contents/MacOS/Clicky";
 			};
 			name = Release;
 		};

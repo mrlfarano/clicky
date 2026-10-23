@@ -22,12 +22,14 @@ internal sealed partial class CompanionCoordinator(
     IAnalyticsSink analyticsSink,
     ITextToSpeechSink textToSpeechSink,
     IFallbackSpeechSink fallbackSpeechSink,
+    IAudioOutput audioOutput,
     CompanionVoiceStateReporter voiceStateReporter,
     AssemblyAiStreamingTranscriptionProvider? transcriptionProvider = null,
     Lazy<MicrophoneCapturePipeline>? microphoneCapturePipeline = null) : ObservableObject
 {
     private readonly Queue<(CompanionSessionEvent SessionEvent, long EventTMs)> pendingSessionEvents = new();
     private readonly List<VoiceStateTimelineEntry> voiceStateTimeline = [];
+    private readonly AnalyticsEvents analyticsEvents = new();
     // shortcut: no Started event yet (persistent/transient start, ONB-03): the runner shows the overlay at the
     // cursor when an exchange starts; feed Started from settings and setup state with onboarding (WS-18).
     private CompanionSessionState sessionState = CompanionSessionState.Initial;
@@ -47,6 +49,7 @@ internal sealed partial class CompanionCoordinator(
     private CancellationTokenSource? latestExchangeCancellation;
     private Task latestExchangeTask = Task.CompletedTask;
     private Task latestPointingTask = Task.CompletedTask;
+    private Task latestSpeechTask = Task.CompletedTask;
 
     // The dictation in progress: its start is cancelled by a release before the session opened, and its session
     // is set from the moment audio flows until the session's finalize machine ends it.
@@ -57,6 +60,9 @@ internal sealed partial class CompanionCoordinator(
     // Generates VoiceState with change notification. Only ApplySessionState sets it, from the reducer's state.
     [ObservableProperty]
     private CompanionVoiceState voiceState;
+
+    /// <summary>The reducer's DismissPanel (a push-to-talk press, CompanionManager.swift:491-492); live mode hides the panel on it.</summary>
+    public event Action? PanelDismissRequested;
 
     public IReadOnlyList<VoiceStateTimelineEntry> VoiceStateTimeline => voiceStateTimeline;
 
@@ -114,11 +120,13 @@ internal sealed partial class CompanionCoordinator(
         // The report waits for the scripted horizon even when the exchange failed, so no scripted event is
         // lost to the write racing the script.
         await DeliverScriptedInputEventsAsync(replayScript);
-        // A scripted release finalizes a dictation and starts another exchange, so wait until both have finished.
-        while (!latestDictationTask.IsCompleted || !latestExchangeTask.IsCompleted)
+        // A scripted release finalizes a dictation, starts an exchange, and a reply ends only when its speech
+        // has, so wait until the dictation, the exchange and the speech have all finished.
+        while (!latestDictationTask.IsCompleted || !latestExchangeTask.IsCompleted || !latestSpeechTask.IsCompleted)
         {
             await latestDictationTask;
             await latestExchangeTask;
+            await latestSpeechTask;
         }
         WriteReport(report);
         return report;
@@ -218,10 +226,20 @@ internal sealed partial class CompanionCoordinator(
                 _ = ReportTransientHideElapsedAsync(scheduleTransientHide);
                 break;
             case CompanionSessionEffect.DismissPanel:
-                // No panel until WS-18; nothing to dismiss.
+                PanelDismissRequested?.Invoke();
                 break;
-            case CompanionSessionEffect.CancelChatRequest or CompanionSessionEffect.StopTtsPlayback or CompanionSessionEffect.ClearPointingTarget:
+            case CompanionSessionEffect.CancelChatRequest or CompanionSessionEffect.ClearPointingTarget:
                 latestExchangeCancellation?.Cancel();
+                break;
+            // CompanionManager.swift:496: a press stops playback at once (TTS-04); cancelling also drops a /tts
+            // download still in flight, so it never plays.
+            case CompanionSessionEffect.StopTtsPlayback:
+                latestExchangeCancellation?.Cancel();
+                if (audioOutput.IsPlaying)
+                {
+                    audioOutput.Stop();
+                    ClickyLog.Write("tts stopped (preempted)");
+                }
                 break;
             case CompanionSessionEffect.StartRecording when transcriptionProvider is not null:
                 dictationStartCancellation = new CancellationTokenSource();
@@ -248,7 +266,7 @@ internal sealed partial class CompanionCoordinator(
                     pointAtElement.PointTagParseResult, latestExchangeReport!, latestExchangeCancellation!.Token);
                 break;
             case CompanionSessionEffect.SpeakResponse speakResponse:
-                _ = SpeakResponseAsync(speakResponse.SpokenText, latestExchangeCancellation!.Token);
+                latestSpeechTask = SpeakResponseAsync(speakResponse.SpokenText, latestExchangeCancellation!.Token);
                 break;
             case CompanionSessionEffect.SpeakFallbackUtterance speakFallbackUtterance:
                 // shortcut: fire-and-forget like NSSpeechSynthesizer.startSpeaking; the stub sink cannot fail, and
@@ -257,8 +275,7 @@ internal sealed partial class CompanionCoordinator(
                 Dispatch(new CompanionSessionEvent.TtsEnded(), currentEventTMs);
                 break;
             case CompanionSessionEffect.TrackAnalyticsEvent trackAnalyticsEvent:
-                // shortcut: no event properties until the AN-01 catalogue maps EventContent to them (T-044).
-                analyticsSink.TrackEvent(trackAnalyticsEvent.EventName);
+                analyticsSink.TrackEvent(BuildCatalogueAnalyticsEvent(trackAnalyticsEvent));
                 break;
             default:
                 throw new InvalidOperationException($"No executor for session effect {effect}.");
@@ -340,6 +357,23 @@ internal sealed partial class CompanionCoordinator(
         activeTranscriptionSession.RequestFinalTranscript();
     }
 
+    /// <summary>
+    /// The reducer names the event and carries its content; the AN-01 catalogue owns the property keys, the
+    /// grapheme character_count and the AN-03 content switch, so every property is built there.
+    /// </summary>
+    private AnalyticsEvent BuildCatalogueAnalyticsEvent(CompanionSessionEffect.TrackAnalyticsEvent trackAnalyticsEvent) =>
+        trackAnalyticsEvent.EventName switch
+        {
+            "push_to_talk_started" => analyticsEvents.PushToTalkStarted(),
+            "push_to_talk_released" => analyticsEvents.PushToTalkReleased(),
+            "user_message_sent" => analyticsEvents.UserMessageSent(trackAnalyticsEvent.EventContent!),
+            "ai_response_received" => analyticsEvents.AiResponseReceived(trackAnalyticsEvent.EventContent!),
+            "element_pointed" => analyticsEvents.ElementPointed(trackAnalyticsEvent.EventContent),
+            "response_error" => analyticsEvents.ResponseError(trackAnalyticsEvent.EventContent!),
+            "tts_error" => analyticsEvents.TtsError(trackAnalyticsEvent.EventContent!),
+            _ => throw new InvalidOperationException($"No AN-01 catalogue event for {trackAnalyticsEvent.EventName}."),
+        };
+
     private async Task RunChatExchangeAsync(CompanionSessionEffect.StartChatRequest startChatRequest, long submitTMs, CancellationToken cancellationToken)
     {
         TracerRunReport report = replayRunReport ?? interactionRunner.CreateReport();
@@ -370,19 +404,59 @@ internal sealed partial class CompanionCoordinator(
         }
     }
 
-    // shortcut: the stub sink "plays" instantly, so TtsStarted/TtsEnded bracket the request; the real sink
-    // reports playback start and end itself (T-029).
+    /// <summary>
+    /// TTS-01: the whole MP3 is downloaded, then played; voiceState turns responding only once playback has
+    /// started (CompanionManager.swift:700-706), and the output's PlaybackStopped is what reports TtsEnded.
+    /// TTS-03: any failure on the way is tracked as tts_error and the system voice speaks the fallback instead
+    /// (CompanionManager.swift:707-711, 761-766).
+    /// </summary>
     private async Task SpeakResponseAsync(string spokenText, CancellationToken cancellationToken)
     {
-        Dispatch(new CompanionSessionEvent.TtsStarted(), currentEventTMs);
+        var playbackStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler signalPlaybackStopped = (_, _) => playbackStopped.TrySetResult();
         try
         {
-            await textToSpeechSink.SpeakAsync(spokenText, cancellationToken);
+            try
+            {
+                byte[] mp3Bytes = await textToSpeechSink.DownloadSpeechAsync(spokenText, cancellationToken);
+                ClickyLog.Write($"tts bytes={mp3Bytes.Length}");
+                // ElevenLabsTTSClient.swift:63: a press during the download means nothing plays.
+                cancellationToken.ThrowIfCancellationRequested();
+                audioOutput.PlaybackStopped += signalPlaybackStopped;
+                audioOutput.Play(mp3Bytes);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ttsException)
+            {
+                analyticsSink.TrackEvent(analyticsEvents.TtsError(ttsException.Message));
+                ClickyLog.Write($"tts failed: {ttsException.Message}");
+                // CompanionManager.swift:765: the fallback voice is a response too, and the reply ends with it (:721-722).
+                Dispatch(new CompanionSessionEvent.TtsStarted(), ElapsedTMs);
+                await fallbackSpeechSink.SpeakFallbackUtteranceAsync(TtsRequest.CreditsErrorFallbackUtterance, cancellationToken);
+                ClickyLog.Write("fallback voice spoken");
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    Dispatch(new CompanionSessionEvent.TtsEnded(), ElapsedTMs);
+                }
+                return;
+            }
+            ClickyLog.Write("tts playing");
+            Dispatch(new CompanionSessionEvent.TtsStarted(), ElapsedTMs);
+            await playbackStopped.Task;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        finally
+        {
+            audioOutput.PlaybackStopped -= signalPlaybackStopped;
+        }
+        // A press stopped it (logged as preempted) and has already moved the session on.
+        if (cancellationToken.IsCancellationRequested)
         {
             return;
         }
+        ClickyLog.Write("tts playback ended");
         Dispatch(new CompanionSessionEvent.TtsEnded(), ElapsedTMs);
     }
 

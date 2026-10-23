@@ -215,11 +215,18 @@ internal static class Program
                     : new MicrophoneCapturePipeline(new ReplayMicrophoneCaptureSourceFactory(timeProvider), new ReplayMicrophoneDeviceChangeNotifier(), transcriptionProvider),
                 LazyThreadSafetyMode.PublicationOnly);
 
-        // The T-002 in-memory sinks record what the interaction outputs; replay (and live, until the real
-        // sinks land) thereby answers nothing to PostHog and opens no audio device.
-        var analyticsSink = new InMemoryAnalyticsSink();
-        var textToSpeechSink = new InMemoryTextToSpeechSink();
-        var fallbackSpeechSink = new InMemoryFallbackSpeechSink();
+        // Replay answers nothing to PostHog (AN-01): the in-memory sink records into the report. Live sends
+        // analytics for real through the PostHog sink once a key ships, or records silently without one.
+        IAnalyticsSink analyticsSink = options.IsReplay
+            ? new InMemoryAnalyticsSink()
+            : CreateLiveAnalyticsSink(settings, ref effectiveUserSettings, userSettingsStore, workerHttpClient);
+        // Resolved beside /chat, so a WorkerBaseUrl path prefix carries over.
+        var ttsEndpoint = new Uri(chatEndpoint, "tts");
+        ITextToSpeechSink textToSpeechSink = replayManifest is not null && replayManifest.FindRouteFor(ttsEndpoint.AbsolutePath) is null
+            ? new InMemoryTextToSpeechSink()
+            : new WorkerTextToSpeechSink(workerHttpClient, ttsEndpoint);
+        IAudioOutput audioOutput = replayManifest is not null ? new SilentReplayAudioOutput(timeProvider) : new WasapiAudioOutput();
+        IFallbackSpeechSink fallbackSpeechSink = replayManifest is not null ? new InMemoryFallbackSpeechSink() : new SystemVoiceFallbackSpeechSink();
 
         var interactionRunner = new TracerInteractionRunner(
             options,
@@ -243,6 +250,7 @@ internal static class Program
             analyticsSink,
             textToSpeechSink,
             fallbackSpeechSink,
+            audioOutput,
             companionVoiceStateReporter,
             transcriptionProvider,
             microphoneCapturePipeline);
@@ -254,7 +262,7 @@ internal static class Program
             {
                 // ONB-02: the demo fires its own analytics event, so a report of a demo run proves the
                 // analytics sink recorded it — the stub's counterpart of ClickyAnalytics's onboarding_demo_triggered.
-                analyticsSink.TrackEvent("onboarding_demo_triggered");
+                analyticsSink.TrackEvent(new AnalyticsEvents().OnboardingDemoTriggered());
             }
             TracerRunReport report = await companionCoordinator.RunReplayAsync(replayScript);
             // --linger-ms keeps the cursor on screen so QA can photograph where it landed (parity spec PNT-04).
@@ -326,6 +334,13 @@ internal static class Program
         }
         ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}");
 
+        // The tray icon and panel (T-031) are live only, and are skipped under --debug-quit-after-ms too: that flag only
+        // exercises startup and the ordered shutdown, and a panel opening on CI runners would add nothing but noise.
+        if (options.DebugQuitAfter is null)
+        {
+            StartTrayIconAndPanel(application, effectiveUserSettings, overlayWindow, companionCoordinator, timeProvider);
+        }
+
         // shortcut: --debug-quit-after-ms is the only quit trigger until the tray's "Quit Clicky" lands (WS-18);
         // that menu item calls ShutDownInOrder too.
         if (options.DebugQuitAfter is TimeSpan debugQuitAfter)
@@ -333,6 +348,75 @@ internal static class Program
             await Task.Delay(debugQuitAfter, timeProvider);
             ShutDownInOrder(application, shortcutMonitor, companionCoordinator);
         }
+    }
+
+    /// <summary>
+    /// The PostHog sink on the shared HttpClient, or, when appsettings.json has no PostHog key or host, the
+    /// in-memory sink, which sends nothing (logged once here). Windows has no PostHog SDK to keep an anonymous
+    /// id, so the first live launch generates one (a UUIDv7, as posthog-ios does) and persists it.
+    /// </summary>
+    private static IAnalyticsSink CreateLiveAnalyticsSink(
+        ClickySettings settings, ref CompanionSettings effectiveUserSettings, ClickyUserSettingsStore userSettingsStore, HttpClient sharedHttpClient)
+    {
+        if (string.IsNullOrWhiteSpace(settings.PostHogApiKey) || !Uri.TryCreate(settings.PostHogHost, UriKind.Absolute, out Uri? postHogHost))
+        {
+            ClickyLog.Write("analytics: no PostHog key or host in appsettings.json; events are not sent");
+            return new InMemoryAnalyticsSink();
+        }
+        if (effectiveUserSettings.AnalyticsDistinctId is null)
+        {
+            // Live takes no --settings-override, so the effective settings are exactly the loaded ones.
+            effectiveUserSettings = effectiveUserSettings with { AnalyticsDistinctId = Guid.CreateVersion7().ToString() };
+            userSettingsStore.Save(effectiveUserSettings);
+        }
+        return new PostHogAnalyticsSink(sharedHttpClient, postHogHost, settings.PostHogApiKey, effectiveUserSettings.AnalyticsDistinctId, ClickyLog.Write);
+    }
+
+    /// <summary>
+    /// PNL-01, PNL-02 and PNL-07: the tray icon toggles the panel. The panel hides on deactivation, push-to-talk
+    /// or ×, following Core's <see cref="CompanionPanelVisibility"/> rules, and opens 0.3 s after launch while
+    /// setup is incomplete. The tray icon follows the taskbar theme (audit B2).
+    /// </summary>
+    private static void StartTrayIconAndPanel(
+        Application application,
+        CompanionSettings effectiveUserSettings,
+        CursorOverlayWindow overlayWindow,
+        CompanionCoordinator companionCoordinator,
+        TimeProvider timeProvider)
+    {
+        // The panel's mic-denied rules read the live permission. The first probe runs before the polling loop's
+        // first wait, so the launch decision below already sees it.
+        var microphonePermissionDetector = new MicrophonePermissionDetector(WindowsMicrophonePermissionProbe.ProbeMicrophonePermission, timeProvider);
+        _ = microphonePermissionDetector.StartPollingAsync(CancellationToken.None);
+        MicrophonePermissionState ReadMicrophonePermissionState() =>
+            microphonePermissionDetector.CurrentPermissionState ?? MicrophonePermissionState.Denied;
+
+        var panelWindow = new CompanionPanelWindow();
+        panelWindow.CreateHiddenWindowHandle();
+        var trayIcon = new ClickyTrayIcon();
+        // The Exit subscription removes the icon on every exit path, so no ghost icon is left (PNL-05).
+        application.Exit += (_, _) => trayIcon.Dispose();
+
+        var panelVisibility = new CompanionPanelVisibility(
+            showPanelWindow: () =>
+            {
+                panelWindow.SetStatus(CompanionPanelStatus.From(
+                    effectiveUserSettings.HasCompletedOnboarding,
+                    ReadMicrophonePermissionState() == MicrophonePermissionState.Granted,
+                    overlayWindow.IsVisible,
+                    companionCoordinator.VoiceState));
+                panelWindow.ShowAnchoredToTrayIcon(trayIcon);
+            },
+            hidePanelWindow: panelWindow.Hide,
+            readMicrophonePermissionState: ReadMicrophonePermissionState,
+            writeLogLine: ClickyLog.Write,
+            timeProvider: timeProvider);
+        trayIcon.Clicked += panelVisibility.HandleTrayIconClicked;
+        panelWindow.SettingChanged += trayIcon.HandleSettingChange;
+        panelWindow.Deactivated += (_, _) => panelVisibility.HidePanel(PanelHideReason.Deactivated);
+        panelWindow.CloseButtonClicked += () => panelVisibility.HidePanel(PanelHideReason.Close);
+        companionCoordinator.PanelDismissRequested += () => panelVisibility.HidePanel(PanelHideReason.PushToTalk);
+        _ = panelVisibility.ShowPanelOnLaunchIfSetupIncompleteAsync(effectiveUserSettings.HasCompletedOnboarding, CancellationToken.None);
     }
 
     /// <summary>

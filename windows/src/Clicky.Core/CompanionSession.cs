@@ -161,8 +161,10 @@ public sealed record CompanionSessionTransition(CompanionSessionState State, IRe
 /// pure event → (state, effects) function. Events that do not apply to the current state (a stale reply
 /// after a cancel, a transcript nobody is finalizing) change nothing, standing in for Swift's
 /// Task.isCancelled checks (CompanionManager.swift:598, 623, 721).
-/// shortcut: no TtsFailed event yet, so a failed TTS leaves voiceState at responding until the next press;
-/// add it with the TTS-03 error handling (T-029).
+/// A failed TTS needs no event of its own: the shell speaks the fallback voice between TtsStarted and TtsEnded
+/// (TTS-03, T-029). A failed chat request takes the same fallback path (CLA-06, T-027).
+/// shortcut: no ResponseFailed event yet, so a failed request with no fallback utterance leaves voiceState at
+/// processing until the next press; revisit if CLA-06 grows a silent-failure case.
 /// </summary>
 public static class CompanionSession
 {

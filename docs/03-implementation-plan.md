@@ -156,7 +156,7 @@ Basis: [ADR 001](adr/001-windows-strategy.md) (approved), [audit](01-portability
   - Partial transcripts are never drawn.
 - **Tests:**
   - Write the vectors `assemblyai-turns`, `transcript-finalize` and `transcription-keyterms`.
-  - Write `parity/assemblyai-{session-basic,final-on-keyup,stall-after-keyup,error-midstream}.jsonl` and `transcribe-token-http-500.json`. Record them on the VM by extending `--record` to WebSocket frames.
+  - Write `stt/assemblyai-{session-basic,final-on-keyup,stall-after-keyup,error-midstream}.jsonl` and `transcribe-token-http-500.json`. Record them on the VM by extending `--record` to WebSocket frames.
   - Add one Replay test per STT scenario.
 - **DoD:** All vectors and `.jsonl` replays pass in CI, and the stall replay delivers at 1.4 s ± 100 ms.
 

@@ -32,13 +32,12 @@ internal sealed record ReplayManifestRoute(
 
 /// <summary>
 /// The parsed --replay-manifest file. Maps Worker routes ("/chat", "/tts", "/transcribe-token") to recorded
-/// responses and the AssemblyAI websocket to a recorded .jsonl frame file (the fake socket transport itself
-/// lands in T-023; this task pins only the schema and the fail-closed HTTP routing).
+/// responses and the AssemblyAI websocket to a recorded .jsonl frame file, played by <see cref="ReplayWebSocketConnector"/>.
 /// </summary>
 /// <param name="Routes">Mapped routes; requests to any other path fail the run instead of reaching the network.</param>
 /// <param name="AssemblyAiSocketFramesFilePath">
 /// Recorded AssemblyAI websocket frames to replay through the fake transport (T-023). Null when the manifest
-/// stages no socket traffic. Present in the schema now so manifests written for later tasks keep parsing.</param>
+/// stages no socket traffic; the run then keeps the stub recorder that submits the tracer prompt.</param>
 internal sealed record ReplayManifest(
     IReadOnlyList<ReplayManifestRoute> Routes,
     string? AssemblyAiSocketFramesFilePath)

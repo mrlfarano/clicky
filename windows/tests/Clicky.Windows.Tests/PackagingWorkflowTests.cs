@@ -28,12 +28,17 @@ public sealed class PackagingWorkflowTests
 
         // Blank lines and comments are not statements. Velopack requires its hook to run
         // before any other code in the process, so the first statement of Main must be it.
-        string firstMainStatement = programSourceLines
+        // The statement spans several lines because the install hooks (T-034) are chained
+        // onto the builder before Run().
+        string[] mainBodyLinesFromFirstStatement = programSourceLines
             .Skip(mainOpeningBraceLineIndex + 1)
             .Select(sourceLine => sourceLine.Trim())
             .SkipWhile(trimmedLine => trimmedLine.Length == 0 || trimmedLine.StartsWith("//"))
-            .First();
-        Assert.Equal("VelopackApp.Build().Run();", firstMainStatement);
+            .ToArray();
+        int firstStatementLastLineIndex = Array.FindIndex(mainBodyLinesFromFirstStatement, line => line.EndsWith(';'));
+        string firstMainStatement = string.Concat(mainBodyLinesFromFirstStatement[..(firstStatementLastLineIndex + 1)]);
+        Assert.StartsWith("VelopackApp.Build()", firstMainStatement);
+        Assert.EndsWith(".Run();", firstMainStatement);
     }
 
     [Fact]

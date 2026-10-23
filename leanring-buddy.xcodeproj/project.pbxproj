@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		AA00BB032F6500030039DA55 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA00BB022F6500020039DA55 /* Sparkle */; };
 		AA00BB062F6500060039DA55 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = AA00BB052F6500050039DA55 /* PostHog */; };
+		7C1C15A20000000000000001 /* companion-voice-response.txt in Resources */ = {isa = PBXBuildFile; fileRef = 7C1C15A10000000000000001 /* companion-voice-response.txt */; };
+		7C1C15A20000000000000002 /* onboarding-demo.txt in Resources */ = {isa = PBXBuildFile; fileRef = 7C1C15A10000000000000002 /* onboarding-demo.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +34,8 @@
 		28F22CBF2F56440300A0FC59 /* Clicky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clicky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		28F22CCC2F56440300A0FC59 /* leanring-buddyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "leanring-buddyTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		28F22CD62F56440300A0FC59 /* leanring-buddyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "leanring-buddyUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		7C1C15A10000000000000001 /* companion-voice-response.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = shared/prompts/companion-voice-response.txt; sourceTree = "<group>"; };
+		7C1C15A10000000000000002 /* onboarding-demo.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = shared/prompts/onboarding-demo.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -223,6 +227,10 @@
 /* Begin PBXResourcesBuildPhase section */
 		28F22CBD2F56440300A0FC59 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
+			files = (
+				7C1C15A20000000000000001 /* companion-voice-response.txt in Resources */,
+				7C1C15A20000000000000002 /* onboarding-demo.txt in Resources */,
+			);
 			buildActionMask = 2147483647;
 			files = (
 			);

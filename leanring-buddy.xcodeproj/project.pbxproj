@@ -182,9 +182,13 @@
 			files = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/shared/prompts/companion-voice-response.txt",
+				"$(SRCROOT)/shared/prompts/onboarding-demo.txt",
 			);
 			name = "Copy shared prompts into app bundle";
 			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/companion-voice-response.txt",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/onboarding-demo.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

@@ -174,7 +174,6 @@
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
-
 /* Begin PBXShellScriptBuildPhase section */
 		7C1C15A30000000000000001 /* Copy shared prompts into app bundle */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -189,7 +188,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "mkdir -p "${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources" && cp "${SRCROOT}/shared/prompts/"*.txt "${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/"";
+			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources\" && cp \"${SRCROOT}/shared/prompts/\"*.txt \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 

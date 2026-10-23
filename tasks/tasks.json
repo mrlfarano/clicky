@@ -201,12 +201,12 @@
         "Given ci.yml, when parsed, then the macos-parity job contains 'xcodebuild test -only-testing:leanring-buddyTests/GoldenVectorTests CODE_SIGNING_ALLOWED=NO' and the TODO is gone."
       ],
       "test_path": "leanring-buddyTests/GoldenVectorTests.swift",
-      "status": "blocked",
-      "pr": null,
-      "dev_notes": "BLOCKED: needs a macOS host. The macos-latest runner can compile and run it via push-and-wait; a local Mac is strongly preferred, and phase-8 sign-off needs a real Mac regardless (STATUS blocker 1). Mark @MainActor (default isolation). Synchronized groups mean no pbxproj edit. Load vectors via #filePath-relative path. QA-matrix: Mac sign-off boxes in docs/02 traceability.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/46",
+      "dev_notes": "Swift golden-vector XCTests on Mac: point-tag (15 cases) + push-to-talk (controlOption neutral cases; other options Windows-parameterized - recorded parity finding). VERIFIED ON REAL MAC (ssh hammer): TEST SUCCEEDED 3/3; macos-parity CI now runs xcodebuild test permanently. Mac project bugs fixed to make tests runnable at all (they NEVER ran before): TEST_HOST referenced nonexistent leanring-buddy.app (product is Clicky.app), template test imported wrong module (leanring_buddy vs Clicky), no shared scheme, MainActor annotations needed.",
       "qa_result": {
-        "verdict": "not-verifiable-here",
-        "note": "macOS host unavailable in this environment; Swift-side golden vectors + prompts task"
+        "verdict": "pass",
+        "evidence": "Executed on the owner-provided Mac (ssh hammer): xcodebuild test -> TEST SUCCEEDED, 3/3 (point-tag vectors, push-to-talk vectors, prompt bundle parity). Plus macos-parity check green on PR #46 CI with the new xcodebuild step."
       }
     },
     {
@@ -226,12 +226,12 @@
         "Given CompanionManager.swift, when CompanionVoiceResponsePromptTests runs, then it asserts no prompt literal remains and the loader names match the files."
       ],
       "test_path": "leanring-buddyTests/CompanionVoiceResponsePromptTests.swift",
-      "status": "blocked",
-      "pr": null,
-      "dev_notes": "BLOCKED: needs a macOS host (same Mac CI loop as T-008). Replaces literals at CompanionManager.swift:544-577 and :950-962. Until this lands, T-040 pins onboarding-demo.txt to the Swift literal.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/46",
+      "dev_notes": "Both system prompts moved from Swift literals to shared/prompts bundle resources (fatalError on missing resource = build defect); sandboxed copy build phase with declared IO (Xcode 27 synchronized projects ignore classic resource refs - documented); bundle==file byte equality asserted on Mac in GoldenVectorParityTests; Windows literal-compare tests replaced with extraction guards.",
       "qa_result": {
-        "verdict": "not-verifiable-here",
-        "note": "macOS host unavailable in this environment; Swift-side golden vectors + prompts task"
+        "verdict": "pass",
+        "evidence": "Executed on the owner-provided Mac (ssh hammer): xcodebuild test -> TEST SUCCEEDED, 3/3 (point-tag vectors, push-to-talk vectors, prompt bundle parity). Plus macos-parity check green on PR #46 CI with the new xcodebuild step."
       }
     },
     {

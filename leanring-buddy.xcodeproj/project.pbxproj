@@ -175,6 +175,25 @@
 		};
 /* End PBXNativeTarget section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		7C1C15A30000000000000001 /* Copy shared prompts into app bundle */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy shared prompts into app bundle";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "mkdir -p "${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources" && cp "${SRCROOT}/shared/prompts/"*.txt "${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+
 /* Begin PBXProject section */
 		28F22CB72F56440300A0FC59 /* Project object */ = {
 			isa = PBXProject;
@@ -224,8 +243,6 @@
 /* Begin PBXResourcesBuildPhase section */
 		28F22CBD2F56440300A0FC59 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			files = (
-			);
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -246,25 +263,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		7C1C15A30000000000000001 /* Copy shared prompts into app bundle */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Copy shared prompts into app bundle";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "mkdir -p "${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources" && cp "${SRCROOT}/shared/prompts/"*.txt "${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/"";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 
 /* Begin PBXSourcesBuildPhase section */
 		28F22CBB2F56440300A0FC59 /* Sources */ = {
@@ -517,7 +515,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Clicky.app/Contents/MacOS/Clicky";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
 			};
 			name = Debug;
 		};
@@ -538,7 +536,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Clicky.app/Contents/MacOS/Clicky";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
 			};
 			name = Release;
 		};

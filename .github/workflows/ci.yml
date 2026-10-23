@@ -12,8 +12,10 @@
 #                     vpk pack, assert-artifacts, verify-signature, Defender scan,
 #                     installed-replay, update-n-to-n1
 #   linux-core-tests  Clicky.Core.Tests on Linux
-#   windows-release   win-v* tags only: vpk upload github of windows-build's package.
-#                     Skipped on every other run, so it is not a required check.
+#   release-gate      win-v* tags only: refuses a non-beta tag or unsigned binaries.
+#   windows-release   win-v* tags only, after release-gate: vpk upload github of
+#                     windows-build's package. Both are skipped on every other run,
+#                     so neither is a required check.
 #
 # BRANCH PROTECTION cannot be configured from the repo. The owner sets it in
 # Settings > Branches > main (or a ruleset targeting main):
@@ -802,6 +804,75 @@ jobs:
             artifacts/package/
           if-no-files-found: warn
 
+  release-gate:
+    name: release-gate
+    # T-037 / WS-21: a win-v<semver>-beta.N tag publishes only signed output to win-beta.
+    # This job reads the exact package windows-build uploaded and fails unless every shipped
+    # binary carries a Valid Authenticode signature, so a tag build without signing secrets
+    # (every fork) stops here and windows-release, which needs this job, never uploads.
+    # verify-signature in windows-build already checked timestamp and subject whenever it signed.
+    if: startsWith(github.ref, 'refs/tags/win-v')
+    needs: windows-build
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download windows-build package
+        uses: actions/download-artifact@v5
+        with:
+          name: windows-build-${{ github.run_attempt }}
+          path: artifacts
+
+      - name: Refuse unsigned output
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^win-v\d+\.\d+\.\d+-beta\.\d+$') {
+            Write-Host "::error::release-gate: tag '$env:GITHUB_REF_NAME' is not win-v<semver>-beta.N; only beta tags publish, to the win-beta channel"
+            exit 1
+          }
+          $packageDirectory = "artifacts/package"
+          $extractedFullNupkgDirectory = Join-Path $env:RUNNER_TEMP "release-gate-full-nupkg"
+          $fullNupkgFiles = @(Get-ChildItem (Join-Path $packageDirectory "*-full.nupkg"))
+          if ($fullNupkgFiles.Count -ne 1) {
+            Write-Host "::error::release-gate: expected exactly one full .nupkg in $packageDirectory, found $($fullNupkgFiles.Count)"
+            exit 1
+          }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($fullNupkgFiles[0].FullName, $extractedFullNupkgDirectory, $true)
+
+          $filesByBinaryName = [ordered]@{
+            'Clicky.exe' = @(Get-ChildItem $extractedFullNupkgDirectory -Recurse -File -Include Clicky.exe)
+            'Update.exe' = @(Get-ChildItem $extractedFullNupkgDirectory -Recurse -File -Include Update.exe, Squirrel.exe)
+            'Setup.exe' = @(Get-ChildItem (Join-Path $packageDirectory "*-Setup.exe"))
+          }
+          $failed = $false
+          foreach ($binaryName in $filesByBinaryName.Keys) {
+            $binaryFiles = $filesByBinaryName[$binaryName]
+            if ($binaryFiles.Count -ne 1) {
+              Write-Host "::error::release-gate: expected exactly one $binaryName, found $($binaryFiles.Count)"
+              $failed = $true
+              continue
+            }
+            $signatureStatus = (Get-AuthenticodeSignature -LiteralPath $binaryFiles[0].FullName).Status
+            if ($signatureStatus -ne 'Valid') {
+              Write-Host "::error::release-gate: $binaryName signature is $signatureStatus, refusing to upload unsigned output. Set the signing secrets listed under SECRETS CONTRACT in the windows-build Sign step of ci.yml (Trusted Signing or the OV .pfx) and re-run the tag."
+              $failed = $true
+            } else {
+              Write-Host "release-gate: $binaryName Valid"
+            }
+          }
+          if ($failed) { exit 1 }
+
+          # windows-release uploads with --channel win-beta; the package must hold that channel's
+          # release set and no other.
+          $releasesManifestNames = @(Get-ChildItem (Join-Path $packageDirectory "releases.*.json") | ForEach-Object Name)
+          if (($releasesManifestNames -join ',') -ne 'releases.win-beta.json') {
+            Write-Host "::error::release-gate: expected only releases.win-beta.json in $packageDirectory, found '$($releasesManifestNames -join ', ')'"
+            exit 1
+          }
+          Write-Host "release-gate: signed; target channel win-beta"
+
   windows-release:
     name: windows-release
     # T-036 / WS-10: a win-v* tag runs pack -> sign -> upload. windows-build packs and signs
@@ -815,8 +886,9 @@ jobs:
     # shortcut: the release keeps windows-build's 0.1.0-ci.<run> package version (monotonic,
     # so the updater orders it right) rather than the tag's semver; derive it from the tag
     # when WS-21 cuts real betas.
+    # release-gate (T-037) must pass first: it refuses unsigned binaries before this job starts.
     if: startsWith(github.ref, 'refs/tags/win-v')
-    needs: windows-build
+    needs: [windows-build, release-gate]
     runs-on: windows-latest
     timeout-minutes: 15
     permissions:

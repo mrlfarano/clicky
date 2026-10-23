@@ -5,6 +5,7 @@ import XCTest
 /// proving the Windows port's C# core reproduces the same behavior as this original code. These
 /// vectors also run against `Clicky.Core` on Windows/Linux in CI, so all three platforms execute
 /// the identical fixtures.
+@MainActor
 final class GoldenVectorParityTests: XCTestCase {
 
     // MARK: - Shared fixture loading

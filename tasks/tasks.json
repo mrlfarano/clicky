@@ -20,7 +20,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/7",
       "dev_notes": "Merged after CI green on PR #7 (108/108 after clean rebuild). Manifest model+strict loader; replay unified through manifests (plain --replay synthesizes one-route); unmapped routes fail closed with InvalidOperationException before any socket; SSE pacing + linger via injected TimeProvider (FakeTimeProvider in-process test). PM merge work: Program.cs/usage combined with T-016; duplicate ClickyProcessRun type (T-001 vs T-016) caught by clean rebuild - startup-failure record renamed ClickyStartupFailureRun; CrashReportingTests added to process-serialization collection (T-016 predates T-001 flake fix). Agent deviations: DispatcherTimer watchdog left to T-007 (dispatcher-affine); test project loads shell assembly for FakeTimeProvider injection; no-socket evidence message-based (reserved .invalid host).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-002",
@@ -41,7 +44,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/11",
       "dev_notes": "SALVAGE NOTE: dev agent committed df74f74 fully green (115/115, 7 tests incl. 4 AC-named) then died on ZCode sub-agent quota exhaustion (reset 2026-10-27) before reporting; PM verified the orphaned commit and merged with T-018: ClickyUserSettingsStore load feeds CompanionSettingsOverrideApplier (overrides land in report effectiveSettings, never persisted - only --set-setting writes), model precedence unified to effectiveUserSettings.SelectedClaudeModel (appsettings model removed by T-018), runner ctor union with stub sinks + replayScript, --set-setting applies to effective settings (parse rejects mixing with --settings-override). 125/125 post-merge clean rebuild. Report fields: voiceStateTimeline, analyticsEvents, ttsRequests, fallbackUtterances from InMemory stub sinks.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-003",
@@ -64,7 +70,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/4",
       "dev_notes": "Merged after CI green on PR #4 (91/91 Core tests, 0 warnings). OverlayPlacement.Place pure fn: hotspot==target always (never clamped), bubble flips right->left/below->above only where flipping helps, 20-DIP inset clamp on every edge (anchored OverlayWindow.swift:463-474; 8/12-DIP bubble gap per PNT-04 decision; 18-DIP glyph, zero hotspot offset matching shell triangle). 9 new placeOverlay cases in screen-mapping.json with per-case swiftAnchors (22 total); CursorFallbackCasesRemainInTheVector guard pins PNT-02 ids. Geometry choices not fixed by spec documented in code + vector notes.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-004",
@@ -91,7 +100,10 @@
       "status": "in_progress",
       "pr": "https://github.com/mrlfarano/clicky/pull/12 (+ fix #13)",
       "dev_notes": "Merged via PR #12 + timing fix PR #13 (133/133 clean rebuild). Content-sized moving window: SetWindowPos position+size in physical px, monitor matched by device name (WM_DISPLAYCHANGE re-enum), WM_DPICHANGED rescale, change-gated applier (60 stationary frames = 0 calls, asserted via setWindowPosCalls report counter), WDA_EXCLUDEFROMCAPTURE preserved, OverlayPlacement (T-003) drives placement. Live-verified on 2-monitor rig: hotspot==target exactly. INCIDENT (PM): PR #12 merged while windows-build red - PM merge script broke poll on any terminal conclusion and admin bypassed required checks. Root cause of red: T-002 ScriptedPressIsDelivered measured wall-clock at dispatcher-continuation time; T-004 startup rendering delays continuation ~650ms on slow CI. Fix in #13: timeline records scheduled virtual instant (AC: on the virtual clock), slip>100ms logged. Hardenings: enforce_admins=true on feature/windows-build (platform-gated merges, no admin bypass), merge script requires all 3 checks == success. Deviations: StreamingBubbleVisibleWithin300ms bound relative to event delivery (ADR acceptance 9 wording); QA-matrix items (mixed-DPI 4px rig, 60s CPU, z-order) remain for phase 7. | QA-FAIL 2026-10-23 (blind): literal AC said tMs<=300 absolute; measured ~650 on 3 runs. Root cause: AC paraphrase dropped the spec's of-the-event-delivered qualifier (spec CLA-04 + ADR acceptance 9 both carry it; committed test measures delivery-relative). AC corrected to the spec wording; re-QA pending.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-005",
@@ -113,7 +125,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/17",
       "dev_notes": "Merged after CI green + two strict-context rebases. VirtualDesktopFollower: EVENT_SYSTEM_FOREGROUND -> fakeable IVirtualDesktopManager -> MoveWindowToDesktop only when overlay off the foreground desktop; no call when current or either id unknown (4 tests). ADR 001 addendum records the spike verdict (Win11 26300). BONUS: added PNT-07 to docs/02 closing the phase-5 spec gap. Panel follower deferred to T-022+.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-006",
@@ -135,7 +150,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/1",
       "dev_notes": "Implemented in worktree, merged as squash 394ba58 after CI green on PR #1. 11 new push-to-talk golden vectors (16->27 cases) + EveryOptionAndBranchCovered guard test; 67/67 Core tests, 0 warnings. Deviations: (1) old placeholder comment lived in LowLevelKeyboardEventTranslator.cs:86 not PushToTalkDetector.cs - removed there, test checks both files. (2) No behavioral change needed: translator already folded L/R Shift; this task settles and pins the decision (Ctrl/Alt stay left-specific per PTT-05/ADR AltGr protection). (3) Extra cases beyond the three named in AC added to satisfy the per-option branch-coverage criterion.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-007",
@@ -161,7 +179,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/14",
       "dev_notes": "Completed from quota-orphaned WIP via claude -p Opus (ZCode agents quota-dead to 2026-10-27). Original agent: resume/unlock reinstall + translator reset, channel hot-swap, transitions-only logging. Completion: hang fixed (live-input smoke test opt-in via CLICKY_RUN_INTERACTIVE_SMOKE=1, skips without input desktop); SECOND BUG found+fixed: SendInput struct 48B vs required 40B (all simulated input would have been rejected) - size now pinned by always-on test; watchdog DispatcherTimer -> one-shot TimeProvider timer with hook-thread affinity (T-001 deferral resolved); TestProcessDataDirectory fixture isolates in-process test logs from real LOCALAPPDATA. 93+44 passed+1 designed skip, clean rebuild, bounded run. OPEN for phase 7: AC4 live smoke + watchdog coverage need interactive VM with CLICKY_RUN_INTERACTIVE_SMOKE=1; ChangeShortcut not yet called by app (panel wiring lands T-022+/WS-19). PM note: PR #14 hit a GitHub Actions glitch (pull_request run lost 2 job conclusions while run-level said success; rerun-failed-jobs 403 on a success run) - resolved by empty-commit retrigger; fresh run green in 4 min. Also carried PM bookkeeping commits (bookkeeping rides PRs since enforce_admins=true).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "not-verifiable-here",
+        "evidence": "Split. (b) AC1-AC3: job windows-build step 7 'Clicky.Windows.Tests (parity replay e2e)' = success @f386b25a3e (same sha as built-app/USAGE.txt and qa-head-sha.txt), the step that runs the Windows test project, which holds HookRecoveryTests (ReinstallsAndResetsOnResumeAndUnlock, ShortcutHotSwaps, LogHasTransitionsNotKeyCodes; fake hook installer, no desktop needed). Individual test names are not in"
+      }
     },
     {
       "id": "T-008",
@@ -183,7 +204,10 @@
       "status": "blocked",
       "pr": null,
       "dev_notes": "BLOCKED: needs a macOS host. The macos-latest runner can compile and run it via push-and-wait; a local Mac is strongly preferred, and phase-8 sign-off needs a real Mac regardless (STATUS blocker 1). Mark @MainActor (default isolation). Synchronized groups mean no pbxproj edit. Load vectors via #filePath-relative path. QA-matrix: Mac sign-off boxes in docs/02 traceability.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "not-verifiable-here",
+        "note": "macOS host unavailable in this environment; Swift-side golden vectors + prompts task"
+      }
     },
     {
       "id": "T-009",
@@ -205,7 +229,10 @@
       "status": "blocked",
       "pr": null,
       "dev_notes": "BLOCKED: needs a macOS host (same Mac CI loop as T-008). Replaces literals at CompanionManager.swift:544-577 and :950-962. Until this lands, T-040 pins onboarding-demo.txt to the Swift literal.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "not-verifiable-here",
+        "note": "macOS host unavailable in this environment; Swift-side golden vectors + prompts task"
+      }
     },
     {
       "id": "T-010",
@@ -232,7 +259,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/16",
       "dev_notes": "Merged after CI green + strict-context rebase (post-#15). Pure event->(state,effects) CompanionSession reducer; 12 golden cases; 105 Core. Encodes: repress-during-response cancels (no history, no ai_response_received); repress-during-finalize ignored but still emits push_to_talk_released; tap-without-speech -> idle; history cap 10 storing spoken text POINT-stripped. Deferred with shortcut comments: errors (T-027/T-029), pointing/overlay/transient (T-011), onboarding guard, analytics property counts. OPEN ITEM (Mac sign-off): spec TTS-01 says responding-until-playback-ends but Swift goes idle at playback start (CompanionManager.swift:704-722).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-011",
@@ -257,7 +287,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/18",
       "dev_notes": "Merged after CI green + fixes. Agent finished code but hit runtime limit pre-commit and left a compile error (record positional properties vs same-named methods in CompanionPanelStatus) - PM completed + verified (119 Core + 52 Windows + 1 skip). Content: transient hide on virtual clock (1s after TTS+pointing end, press cancels, pointing defers), persistent/transient start per isClickyCursorEnabled, CompanionPanelStatus (Setup/Ready/Active/Listening/Processing/Responding + dot colour, Swift-anchored) + hint copy. CI fix: document swiftAnchor reduced to single range per macOS validator format. Documented departure: tap-without-speech schedules hide every time (spec TTS-02) vs Mac once-until-first-reply (CompanionManager.swift:457). Reducer never reads a clock - shell owns the TimeProvider timer (T-012 wires it). Show-Clicky-change-while-running + onboarding events not modelled; hint fixed to Ctrl+Alt until shortcut picker.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-012",
@@ -281,7 +314,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/20",
       "dev_notes": "Merged after CI green (119+62+1skip). CompanionCoordinator: input events -> pure reducer -> effects executed on dispatcher; MVVM state driven by reducer; scripted repress cancels streamed response; TracerInteractionRunner voiceState assignments removed (source-scan pinned). Gaps with shortcut comments: Started event unsent (ONB-03 transient inactive in shell); analytics properties await T-044; history not in requests (ClaudeRequestBuilder lacks param); cancelled partial bubble text persists until next reply. ObservableProperty field-form needs LangVersion=preview (generator 8.4 limitation noted).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-013",
@@ -300,7 +336,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/5",
       "dev_notes": "Merged after CI green on PR #5 - the windows-build job on that PR ran the NEW workflow, so vpk pack + assert-artifacts + Defender-over-package verified on a real windows-latest runner. Velopack 1.2.161 NuGet (lockstep with vpk pin); VelopackApp.Build().Run() literal first statement of Main; CI Package step: vpk pack --packId Clicky --packVersion 0.1.0-ci.N --packTitle Clicky --runtime win-x64 --channel win-beta --mainExe Clicky.exe. 4 PackagingWorkflowTests + CiWorkflowSource reader (87/87 local incl. real vpk dry-run on this machine). Deviations: installer filename is Clicky-win-beta-Setup.exe (asserted as *-Setup.exe); --runtime win-x64 added (bootstrapper arch); 2 extra tests pin criteria 2+4. vpk 1.2.161 left installed as global dotnet tool locally (useful for T-014).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "(b) AC1 VelopackIsFirstLineOfMain and AC3 PackUsesWinBetaChannelAndPinnedVpk: windows-build step 7 'Clicky.Windows.Tests (parity replay e2e)' = success. (b) AC2: windows-build step 11 'assert-artifacts' = success (Setup.exe, full .nupkg, releases.win-beta.json), ordered after step 10 'Package' = success (27s). (b) AC4: step 13 'Defender scan of packaged output' = success, ran 02:58:27-03:00:50 (ab"
+      }
     },
     {
       "id": "T-014",
@@ -319,7 +358,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/9",
       "dev_notes": "Merged after CI green on PR #9 - installed-replay step verified on real windows-latest runner. Step: silent Setup.exe install (-s verified via --help locally), seed user data, run INSTALLED Clicky.exe --replay with absolute fixture path (installed copy needs nothing repo-shaped), apply second package via Update.exe apply -s --norestart, assert sq.version bumped + user-data SHA256 identical. KEY FINDING (verified locally, reproduced twice): Setup.exe full install WIPES settings.json/logs/crashes beside current; Update.exe staged apply preserves byte-identical. CI tests the update path; documented in ci.yml. RELEASE NOTE: users must update via the updater, never re-run Setup.exe. Local dress rehearsal of exact step logic ran green before push.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "(b) AC1: windows-build step 14 'installed-replay' = success (03:00:50-03:01:06, 16s), ordered after Package and Defender scan; the contract has this step silently install Setup.exe and run the installed Clicky.exe --replay point-basic.sse with exit 0. (b) AC2 PackagingWorkflowTests.UserDataOutsideCurrentSurvives: step 7 'Clicky.Windows.Tests (parity replay e2e)' = success. (a) Consistent: --set-se"
+      }
     },
     {
       "id": "T-015",
@@ -340,7 +382,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/15",
       "dev_notes": "Merged after CI green (SKIPPED path exercised on the PR itself). Signing via vpk per WS-09: azureTrustedSignFile metadata (Trusted Signing secrets TRUSTED_SIGNING_*) or decoded OV .pfx + signParams (SIGNING_CERT_PFX_BASE64 + SIGNING_PASSWORD). verify-signature asserts Valid + timestamp + expected subject on Clicky.exe/Update.exe|Squirrel.exe/Setup.exe; signs BEFORE Defender scan + installed-replay. CAVEAT: post-2023-06 OV keys stay in HSM (no .pfx) - new OV needs AzureSignTool/--signTemplate. CI-only: real Trusted-Signing run needs owner secrets.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "not-verifiable-here",
+        "evidence": "AC1 not verifiable: it needs real signing secrets. Step 12 'verify-signature' = skipped, which fits the secrets gate and proves nothing about a Valid signature on Clicky.exe, Update.exe or Setup.exe. windows-release was also skipped. Missing: Trusted Signing/HSM secrets and a signed run. AC2 supported: (b) step 9 'Sign' = success in 0s (02:58:00-02:58:00), consistent with the no-secrets skip path "
+      }
     },
     {
       "id": "T-016",
@@ -359,7 +404,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/6",
       "dev_notes": "Merged after CI green on PR #6 (squash f8d91a1). Program.cs conflict with T-013 resolved: VelopackApp.Build().Run() stays literal first statement, crash handlers immediately after (Velopack may exit process for install hooks before our code runs). MiniDumpWriteDump(MiniDumpNormal) from AppDomain+Dispatcher handlers, write-once, UTC dmp+txt under crashes dir; rolling 1MB/5-file log; CLICKY_DATA_DIR override; --debug-crash real unhandled exception on dedicated thread. Privacy fix: TracerInteractionRunner logged full spoken text, now N chars. 104/104 post-resolution. Deviations: hand DllImport (CsWin32 PInvoke005 for AnyCPU); --debug-crash uses inert replay endpoint; dump verified MDMP magic locally. Two dev bugs caught by own tests (crash files cwd vs crashes dir; roll-check on missing file).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-017",
@@ -380,7 +428,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/3",
       "dev_notes": "Merged after CI green on PR #3 (squash 818f952); GoldenVectors.cs conflict with T-006 resolved locally (both LoadVectorDocument and LoadAllCases kept; 78/78 Core tests post-merge). CompanionSettings + merger: missing key -> default; wrong-typed value -> that key default WITHOUT corrupt flag; unparseable/non-object -> all defaults + UserSettingsFileWasCorrupt (ONB-04); unknown keys preserved in UnrecognizedUserSettingsValues for T-018 rewrite. Shell ClickySettings.cs untouched (appsettings layer, T-018 wires). Vector swiftAnchor=CompanionManager.swift:111-150; 6 known keys pinned by VectorCoversEveryKnownSettingsFileKey.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-018",
@@ -405,7 +456,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/8",
       "dev_notes": "Merged after CI green on PR #8 (112/112 clean rebuild; first wave-2 merge, landed clean). ClickyUserSettingsStore: load+merge via T-017 Core merger, atomic temp+File.Replace (plain rename first write), unrecognized keys round-trip, CLICKY_DATA_DIR honored, test-only interrupt seam between temp write and swap. Ship-time appsettings split per WS-12: WorkerBaseUrl/UpdateFeedUrl(empty=off)/PostHog host+key/ClaudeModels; ClaudeModel+PushToTalkShortcut moved to user settings; version from assembly (A7). Deviations: --set-setting CLI hook (no UI yet; process-level AC trigger, T-016 --debug-crash precedent; rejects combining with replay/record/debug-crash); replay harness isolated to throwaway CLICKY_DATA_DIR (dev settings would flake replay + model assertion updated to CompanionSettings.DefaultClaudeModel).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-019",
@@ -425,7 +479,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/2",
       "dev_notes": "Merged after CI green on PR #2 (62/62 Core tests, 0 warnings). Windowed-sinc resampler (Blackman, 16 zero-crossings, 8kHz cutoff, exact frame-count rule floor(n*16000/rate)) - linear would alias into speech band; library resampler rejected in Core for purity + byte-exact chunked-output tests. RMS boost x10.2 clamp[0,1] and 0.72 decay ported from BuddyDictationManager.swift:694-709. Streaming converter with FlushRemainingAudio() guards T-020 WASAPI chunking (chunked==single-shot byte-identical test). No deviations.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-020",
@@ -449,7 +506,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/10",
       "dev_notes": "Merged after CI green on PR #10. NAudio.Wasapi 2.2.1 shared-mode capture (audit F1 approved equivalent; package id corrected from plan namespace name NAudio.CoreAudioApi), IMMNotificationClient default-device reopen (same-format byte-continuous, 64000B exact), MicrophonePermissionDetector in Core with injected clock - flips within 1500ms both directions (AppCapability on 19041+ with E_ACCESSDENIED trial-Initialize fallback per F4). Fake-source tests (160000B+-1%/5s) keep CI honest with no mic; live WASAPI probe compiles but is VM-QA evidence (PNL-04). Not yet wired into live mode (T-021+ per plan; T-019 precedent). WaitUntilAsync wall-clock helper only for continuation scheduling; all timestamps from virtual clock.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-021",
@@ -476,7 +536,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/22",
       "dev_notes": "Core AssemblyAI token parser, wss URL+keyterms (11 base verbatim, dedupe case-insensitive, blank dropped), turn assembly (ascending join, formatted-not-overwritten, empty-not-stored, missing-order fallback). 141 Core. Deviations: conservative query escaping; no-token URL path dropped; raw Turn JSON decode + finalize (STT-04/06) later.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-022",
@@ -501,7 +564,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/29",
       "dev_notes": "Finalize machine: grace 1400/session 2800/default 2400 first-wins; end-of-turn+Terminate immediate-once; error-no-text cancels; partial submits; empty not submitted. 215 Core. Merged provider+manager transcript tracking (shortcut comment); T-023 wires it.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-023",
@@ -529,7 +595,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/35",
       "dev_notes": "AssemblyAI WS shell: ONE shared invoker (ClientWebSocket), ReplayWebSocketConnector (.jsonl recordings), RunDictationAsync session-then-mic, T-022 finalize driven (stall 1400ms +-100ms), transcript->/chat clean displayTimeline, errors->no request+idle, close 1001+Channel serialization. Four .jsonl + token-500 fixtures. PM merge with T-029/T-031/T-044. VM: live STT, .jsonl re-record via --record (not built).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-024",
@@ -552,7 +621,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/23",
       "dev_notes": "capture-plan.json vector (cursor-first, exact labels, 1512x982->1280x831) + capture timeline in report + CaptureHappensAtSubmit (submit-time capture, none at press). Timing was already submit-time; this added the proof. Labels per Swift incl. single-monitor cursor-is-here variant. 128+70+1skip.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-025",
@@ -574,7 +646,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/30",
       "dev_notes": "CaptureOptions.Decide(osBuild): borderless 20348+ only; overlay+panel same exclude-or-hide (panel seam ready for T-031); one D3D device (fake-factory tested). QA: real-machine borderless + 1903 overlay-return-250ms; GPU-loss no-recreate (pre-existing).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-026",
@@ -601,7 +676,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/24",
       "dev_notes": "ClaudeRequestBuilder: alternating history turns, images only last user turn, per-monitor [image,text] blocks, max_tokens 1024, stream true, PNG magic sniffing. claude-request vector; point-tag/sse vectors stayed green. History wiring through coordinator still later; cap already in CompanionSession.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-027",
@@ -626,7 +704,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/31",
       "dev_notes": "ClaudeClient: effective-settings model (override honored; in-flight keeps original); TLS warm-up HEAD; connect retry exactly once; virtual-clock stall deadline; chat-http-529 -> fallback utterance + response_error + no history. Manifest per-route connectFailures. response_error properties await T-044.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-028",
@@ -650,7 +731,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/25",
       "dev_notes": "Core TTS: body (eleven_flash_v2_5, 0.5/0.75, audio/mpeg), blank no-call guard, non-2xx exact fallback. tts-http-402 fixture under shared/fixtures/parity per AC (plausible body, test uses status). tts-ok.mp3 staged for future harness. .NET/Swift whitespace edge noted.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-029",
@@ -676,7 +760,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/32",
       "dev_notes": "MP3 playback (IAudioOutput: NAudio MF reader + WasapiOut, full-download-then-play per Swift), System.Speech fallback on 402, press-to-stop, PlaybackStopped->TtsEnded. Fake audio output drives AC tests. PM merge with T-022/T-025/T-027 (4 conflicted files) + the CI-determinism fix on transcript-finalize (deadline tracking instead of FakeTimeProvider timers - callback-queue race under load). Live WASAPI unrun (VM).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-030",
@@ -700,7 +787,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/28",
       "dev_notes": "WinExe lifecycle: named per-user mutex (2nd instance exits 0, no hook - one hook-installed across logs), --debug-quit-after-ms ordered shutdown (hook->dictation->overlay->in-flight, order asserted) + shutdown complete. Log hardened for multi-instance sharing; replay stdout preserved. Gaps (shortcut comments): no tray Quit yet; update loop not cancelled on shutdown; dictation-cancel state-only. CI risk (real hook on runner) resolved green on merge.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-031",
@@ -725,7 +815,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/33",
       "dev_notes": "Tray icon (H.NotifyIcon, live-only), PanelAnchor per taskbar edge, hide rules with reasons (mic-denied keeps panel), themed placeholder .ico, auto-open 0.3s virtual clock. QA: mixed-DPI panel pos, focus-on-click, overflow-flyout anchor. 64-bit PInvoke shortcut noted.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-032",
@@ -751,7 +844,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/37",
       "dev_notes": "PanelViewModel + XAML: header (all combos vs panel-status vector), mic-only permission row with ms-settings:privacy-microphone Grant, model picker persisting through real store (hidden until onboarded+mic). DS inline hex for T-033. QA: screenshots/tab order/Narrator. Known: per-exchange reports record startup model; requests use live.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-033",
@@ -776,7 +872,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/40",
       "dev_notes": "DS tokens as resources; shortcut picker (persist + hook hot-swap); Report-a-problem (crash folder + prefilled issue, fake launcher); Show-Clicky ABSENT pinned; automation names + Hand cursor + 0-delay tooltips (STA walk); Quit = ordered shutdown. T-039 stubs: Submit/Start/Watch log-only. QA: Narrator/tab order/Win10 render.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-034",
@@ -800,7 +899,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/38",
       "dev_notes": "Velopack install hook: HKCU Run/Clicky from running exe path; Start-menu shortcut; CI install-hooks green on runner (install asserts Run+shortcut; silent uninstall removes both; Run key stable across update). Runner admin so no-UAC implied only (per-user targets asserted).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "(b) AC1 and AC2: windows-build step 16 'install-hooks' = success (03:01:32-03:01:41, 9s), after step 14 'installed-replay' = success (silent install). The contract has this step assert the HKCU Run/Clicky path and the Start-menu shortcut after install, and their removal after uninstall. (b) AC3 InstallHooksTests.RunKeyStableAcrossUpdate: step 7 'Clicky.Windows.Tests (parity replay e2e)' = success."
+      }
     },
     {
       "id": "T-035",
@@ -823,7 +925,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/19",
       "dev_notes": "Merged after CI green. Agent hit limit pre-commit (xUnit1051 token errors); PM completed + verified (105+58+1skip on its branch). Idle-gated update service behind interfaces (VelopackUpdateFeedClient wraps UpdateManager): empty UpdateFeedUrl = zero requests; apply waits for idle via CompanionVoiceStateReporter; startup + 6h checks on injected clock, errors logged + retried; win-beta/win channel from config. Notes: live voice state approximate until reducer drives live mode (shortcut comment); ChecksAtStartupAndEverySixHours has a 100ms re-arm wait (flake watch - passed CI); apply-on-quit skipped (Velopack applies on next launch).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-036",
@@ -844,7 +949,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/21",
       "dev_notes": "Merged after CI green - update-n-to-n1 verified on a real windows-latest runner: pack N, silent install, seeded settings.json, local folder feed with N+1, installed Clicky.exe --debug-update-now (new debug flag -> immediate check + WaitExitThenApplyUpdates), version N+1 asserted + settings hash identical. win-v* tag job: pack -> sign -> vpk upload github (order source-pinned); Sparkle/appcast untouched. Local: dual-pack folder feed + delta verified; upload flags pinned. CI-only: real vpk upload github (needs secrets + tag).",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "(b) AC1 and AC2: windows-build step 15 'update-n-to-n1' = success (03:01:06-03:01:32, 26s, long enough to include two installs and an update). The contract has this step assert the installed version is N+1 and that the settings.json hash is unchanged after --debug-update-now. (b) AC3 UpdateWorkflowTests.TagRunsPackSignUpload: step 7 'Clicky.Windows.Tests (parity replay e2e)' = success; it parses c"
+      }
     },
     {
       "id": "T-037",
@@ -869,7 +977,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/39",
       "dev_notes": "release-gate: unsigned refused before vpk upload (NotSigned check, fork=no-secrets fails with contract message); signed passes with win-beta channel; notes template with SmartScreen Run-anyway + clean-VM field. CI-only: real tag refusal/signed pass/upload/first beta (owner). Gate script never ran locally (sandbox) - tests cover via source reads.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "not-verifiable-here",
+        "evidence": "AC1: release-gate = skipped on this push (run event=push on feature/windows-build, no tag), which is expected and proves neither the refusal nor its absence. It needs an actual win-v<semver>-beta.N tag run on a no-secrets build to see release-gate fail before the upload step. AC2: needs a signed build with secrets to see the gate pass with win-beta as target; none available. AC3 BetaWorkflowTests."
+      }
     },
     {
       "id": "T-038",
@@ -896,7 +1007,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/41",
       "dev_notes": "RESCOPED+merged: music fade (0.3 to 0 over 90-93s virtual clock, IAudioOutput volume), ff.mp3 content, owner-decision addenda in spec+ADR (video DROPPED). Original video spike discarded uncommitted after it opened a video on the owner desktop; committed tree audited video-free.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-039",
@@ -920,7 +1034,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/43",
       "dev_notes": "Onboarding flow wired (email/FormSpark+identify, Start persists+dismisses+music, PTT-ignore asymmetry, closing prompt 2.3s/10s, Watch Again -> onboarding_replayed static). No video per owner decision. Note: prompt copy says Ctrl+Alt regardless of chosen shortcut (picker integration later). 239+123+1skip.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-040",
@@ -943,7 +1060,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/42",
       "dev_notes": "onboarding-demo.sse (POINT screen 0, 1 image), no-coordinate fixture, prompt byte-equality vs Swift literal, demo replay asserts onboarding_demo_triggered + exact user text.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-041",
@@ -967,7 +1087,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/26",
       "dev_notes": "FlightPath.Sample porting OverlayWindow.swift:495-568 exactly (eased pos+rotation, linear scale, DIP units); duration f(distance) clamped 0.6-1.4s; vector hand-derived. T-042 sequencer converts px->DIP and owns the 60fps timer.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-042",
@@ -991,7 +1114,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/36",
       "dev_notes": "PointingSequence over FlightPath: fly->bubble->3s hold->return->clear; >100pt DPI-scaled move cancels return (150% pinned); idle-before-target order + element_pointed label; 0.4s fade. PM note: agent finished earlier but PR shepherding was missed in the wave-7 shuffle; rebased on current head (237+93+1skip) and merged as #36.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-043",
@@ -1016,7 +1142,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/27",
       "dev_notes": "AnalyticsEvents catalogue verbatim from ClickyAnalytics.swift + identify; character_count via StringInfo (grapheme); content flags default parity (owner decision deferred), one instance-level switch strips both. T-044 wires the sink; string-literal calls bypass catalogue until then.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     },
     {
       "id": "T-044",
@@ -1039,7 +1168,10 @@
       "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/34",
       "dev_notes": "PostHogAnalyticsSink fire-and-forget (failures dropped, no key=no-op logged); catalogue wired (literals replaced); full-exchange AN-01 order asserted, zero posthog.com in replay; distinct id UUIDv7 on first live launch until identify(email). RISK: live runs of key-shipping builds send real events. PM merge with T-031 (both methods coexist) + TtsError catalogue fix.",
-      "qa_result": null
+      "qa_result": {
+        "verdict": "pass",
+        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+      }
     }
   ]
 }

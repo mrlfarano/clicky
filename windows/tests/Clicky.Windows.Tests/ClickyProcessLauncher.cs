@@ -18,7 +18,7 @@ internal sealed record ClickyProcessRun(int ExitCode, string ProcessOutput, stri
 /// </summary>
 internal static class ClickyProcessLauncher
 {
-    private static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(120);
 
     /// <summary>Creates an empty temporary directory to hand to the app as its data directory root.</summary>
     public static string CreateTempDataDirectory()

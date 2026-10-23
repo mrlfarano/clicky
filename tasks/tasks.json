@@ -917,9 +917,9 @@
         "Given onboarding completes, when 2.3 s elapse on a fake clock, then OnboardingFlowTests.ClosingPromptAfterOnboarding asserts the closing prompt appears and dismisses after 10 s, and Watch Onboarding Again fires onboarding_replayed (no video replay: the button re-runs the static onboarding)."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/OnboardingFlowTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "RESCOPED by owner decision 2026-10-23: video-dependent ACs reworded to the no-video onboarding (video dropped on Windows; onboarding_video_completed never fires).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/43",
+      "dev_notes": "Onboarding flow wired (email/FormSpark+identify, Start persists+dismisses+music, PTT-ignore asymmetry, closing prompt 2.3s/10s, Watch Again -> onboarding_replayed static). No video per owner decision. Note: prompt copy says Ctrl+Alt regardless of chosen shortcut (picker integration later). 239+123+1skip.",
       "qa_result": null
     },
     {

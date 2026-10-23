@@ -220,3 +220,13 @@ Task T-005 (audit E2, parity PNT-07), recorded 2026-10-22 on Windows 11 Pro buil
 **Not verified:** no real Win+Ctrl+Arrow switch was performed. Doing so would have created or switched desktops in the developer's live session, so the spike stops at the API. The verdict therefore rests on an inference: the virtual-desktop shell hides only windows that are assigned to a desktop, so an overlay assigned to none stays visible on every desktop. This is inferred, not observed. For the overlay, the follower is consequently a no-op on this build. It is the safety net for builds or styles where the overlay does get a desktop id, and it is the mechanism for any desktop-bound window later (for example the phase-6 panel, if it is not a tool window).
 
 **Flip rule (PNT-07):** 10 Win+Ctrl+Arrow switches in persistent cursor mode, with the buddy visible on the new desktop within 500 ms in 10/10. Any miss flips this to FALLBACK. The buddy is then recreated on the next push-to-talk, as on macOS (`CompanionManager.swift:485-489`).
+
+## Addendum — onboarding video dropped
+
+Task T-038 (audit E8, parity ONB-01 and ONB-05), recorded 2026-10-22.
+
+**Owner decision 2026-10-23:** the onboarding video is dropped on Windows. There is no video host and no 40 s demo trigger, and `onboarding_video_completed` never fires.
+
+- This supersedes the E8 spike named under "UI framework" above: no `MediaPlayerElement`, WebView2 + hls.js or browser fallback is built, and nothing in the app opens a video or a browser for onboarding.
+- The onboarding music stays. `ff.mp3` ships as a content file beside `Clicky.exe` and plays at volume 0.3, holding until 90 s and fading to 0 by 93 s, as on the Mac (`CompanionManager.swift:240-282`). It starts only from the onboarding flow's Start and Watch Onboarding Again paths (T-039), never at launch.
+- `OnboardingTimingTests.OwnerDecisionRecorded` pins this addendum and the matching ONB-01 and ONB-05 notes in `docs/02-parity-spec.md`.

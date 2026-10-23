@@ -54,6 +54,8 @@
     <!-- Seam 10: the system prompts are shared with the Mac app as files, not string literals. -->
     <None Include="..\..\..\shared\prompts\companion-voice-response.txt" Link="prompts\companion-voice-response.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\shared\prompts\onboarding-demo.txt" Link="prompts\onboarding-demo.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The onboarding music (ONB-01), linked from the Mac bundle's own copy rather than duplicating 8 MB. -->
+    <None Include="..\..\..\leanring-buddy\ff.mp3" Link="ff.mp3" CopyToOutputDirectory="PreserveNewest" />
     <!-- Tray icons, light and dark taskbar (audit B2). These are generated placeholders: the Mac's menu bar
          triangle (MenuBarPanelManager.swift:76-108) at 16/20/24/32 px. Real brand icons replace them under the same names. -->
     <None Update="Assets\clicky-tray-*.ico" CopyToOutputDirectory="PreserveNewest" />

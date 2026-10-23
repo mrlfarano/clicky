@@ -1,0 +1,91 @@
+<!-- The panel's content (CompanionPanelView.swift), bound to PanelViewModel. Its window is CompanionPanelWindow.
+     shortcut: colours are the DS hex values inline and controls use stock templates; T-033 ports the DS tokens and styles. -->
+<UserControl x:Class="Clicky.Windows.CompanionPanelView"
+             x:ClassModifier="internal"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:Clicky.Core;assembly=Clicky.Core"
+             xmlns:local="clr-namespace:Clicky.Windows">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+    </UserControl.Resources>
+    <StackPanel>
+        <!-- Header: status dot, title, status text and × (CompanionPanelView.swift:85-117). -->
+        <DockPanel>
+            <Button x:Name="CloseButton" x:FieldModifier="internal" DockPanel.Dock="Right" Content="×" FontSize="14"
+                    Width="24" Height="24" Foreground="#6B736F" Background="Transparent" BorderThickness="0"
+                    AutomationProperties.Name="Close panel" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding PanelStatus.StatusText}" FontSize="12" FontWeight="Medium"
+                       Foreground="#6B736F" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- The dot colour follows CompanionPanelView.swift:728-740 via CompanionPanelStatus. -->
+                <Ellipse Width="8" Height="8" Margin="0,0,8,0">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="#6B736F" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PanelStatus.StatusDotColor}" Value="{x:Static core:CompanionStatusDotColor.Success}">
+                                    <Setter Property="Fill" Value="#34D399" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding PanelStatus.StatusDotColor}" Value="{x:Static core:CompanionStatusDotColor.Blue400}">
+                                    <Setter Property="Fill" Value="#60A5FA" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="Clicky" FontSize="14" FontWeight="SemiBold" Foreground="#ECEEED" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Push-to-talk hint once set up (CompanionPanelView.swift:129-133); null means setup copy instead. -->
+        <TextBlock Text="{Binding PanelStatus.PushToTalkHintText}" FontSize="12" FontWeight="Medium" Foreground="#ADB5B2" Margin="0,16,0,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding PanelStatus.PushToTalkHintText}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <!-- Revoked after onboarding (CompanionPanelView.swift:150-160); "Grant all four below" becomes microphone-only (PNL-04). -->
+        <StackPanel Margin="0,16,0,0" Visibility="{Binding IsPermissionsRevokedCopyVisible, Converter={StaticResource BooleanToVisibility}}">
+            <TextBlock Text="Permissions needed" FontSize="12" FontWeight="Bold" Foreground="#ADB5B2" />
+            <TextBlock Text="Microphone access was turned off. Grant it below to keep using Clicky." FontSize="11"
+                       Foreground="#6B736F" TextWrapping="Wrap" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <!-- Model picker (CompanionPanelView.swift:601-631). -->
+        <DockPanel Margin="0,12,0,0" Visibility="{Binding IsModelPickerVisible, Converter={StaticResource BooleanToVisibility}}">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <RadioButton GroupName="ClaudeModel" Content="Sonnet" Foreground="#ECEEED" Margin="0,0,10,0"
+                             IsChecked="{Binding IsSonnetSelected, Mode=OneWay}"
+                             Command="{Binding SelectClaudeModelCommand}" CommandParameter="{x:Static local:PanelViewModel.SonnetModelId}" />
+                <RadioButton GroupName="ClaudeModel" Content="Opus" Foreground="#ECEEED"
+                             IsChecked="{Binding IsOpusSelected, Mode=OneWay}"
+                             Command="{Binding SelectClaudeModelCommand}" CommandParameter="{x:Static local:PanelViewModel.OpusModelId}" />
+            </StackPanel>
+            <TextBlock Text="Model" FontSize="13" FontWeight="Medium" Foreground="#ADB5B2" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <!-- PERMISSIONS (CompanionPanelView.swift:245-262): only the microphone row on Windows. -->
+        <StackPanel Margin="0,16,0,0" Visibility="{Binding IsPermissionsSectionVisible, Converter={StaticResource BooleanToVisibility}}">
+            <TextBlock Text="PERMISSIONS" FontSize="10" FontWeight="SemiBold" Foreground="#6B736F" Margin="0,0,0,6" />
+            <ItemsControl ItemsSource="{Binding PermissionRows}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel Margin="0,6">
+                            <Button DockPanel.Dock="Right" Content="Grant" Command="{Binding GrantCommand}" FontSize="11"
+                                    FontWeight="SemiBold" Foreground="White" Background="#2563EB" BorderThickness="0" Padding="10,4"
+                                    AutomationProperties.Name="{Binding Title, StringFormat='Grant {0} access'}" />
+                            <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="Medium" Foreground="#ADB5B2" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

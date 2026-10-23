@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace Clicky.Windows;
 
@@ -17,6 +18,12 @@ internal interface IAudioOutput
 
     bool IsPlaying { get; }
 
+    /// <summary>
+    /// This output's own gain, 0 to 1 (default 1), like AVAudioPlayer.volume: it applies to the current and later
+    /// playbacks and never changes the system volume. The onboarding music fades with it (ONB-01).
+    /// </summary>
+    float Volume { get; set; }
+
     /// <summary>Raised once per Play: when the audio has played to its end, or after Stop.</summary>
     event EventHandler? PlaybackStopped;
 }
@@ -29,19 +36,34 @@ internal sealed class WasapiAudioOutput : IAudioOutput
 {
     private WasapiOut? wasapiOut;
     private StreamMediaFoundationReader? mp3Reader;
+    private VolumeSampleProvider? volumeSampleProvider;
+    private float volume = 1f;
 
     public event EventHandler? PlaybackStopped;
 
     public bool IsPlaying => wasapiOut?.PlaybackState == PlaybackState.Playing;
 
+    public float Volume
+    {
+        get => volume;
+        set
+        {
+            volume = value;
+            volumeSampleProvider?.Volume = value;
+        }
+    }
+
     public void Play(byte[] mp3Bytes)
     {
         ReleasePlayback();
         mp3Reader = new StreamMediaFoundationReader(new MemoryStream(mp3Bytes));
+        // The gain is applied to the samples: WasapiOut.Volume would set the device's master volume instead.
+        volumeSampleProvider = new VolumeSampleProvider(mp3Reader.ToSampleProvider()) { Volume = volume };
         // Constructed on the dispatcher, so WasapiOut raises PlaybackStopped through the dispatcher's context.
         wasapiOut = new WasapiOut();
         wasapiOut.PlaybackStopped += HandleWasapiPlaybackStopped;
-        wasapiOut.Init(mp3Reader);
+        // Back to 16-bit PCM, the format the reader produced before the gain stage was added.
+        wasapiOut.Init(volumeSampleProvider, convertTo16Bit: true);
         wasapiOut.Play();
     }
 
@@ -68,6 +90,7 @@ internal sealed class WasapiAudioOutput : IAudioOutput
         }
         mp3Reader?.Dispose();
         mp3Reader = null;
+        volumeSampleProvider = null;
     }
 }
 
@@ -82,6 +105,9 @@ internal sealed class SilentReplayAudioOutput(TimeProvider timeProvider) : IAudi
     public event EventHandler? PlaybackStopped;
 
     public bool IsPlaying => playbackCancellation is not null;
+
+    /// <summary>Kept only so tests can read the gain a real output would apply.</summary>
+    public float Volume { get; set; } = 1f;
 
     public void Play(byte[] mp3Bytes)
     {

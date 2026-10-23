@@ -536,6 +536,7 @@ Swift: [MenuBarPanelManager.swift](../leanring-buddy/MenuBarPanelManager.swift),
   - Push-to-talk is ignored while the video plays ([:477-478](../leanring-buddy/CompanionManager.swift#L477-L478)).
   - Onboarding tells the user to pin the tray icon (ADR, audit B1).
 - **Fixture & harness**: Manual-VM (Lands 6). **Evidence:** a screen recording of the whole flow, plus the settings file before and after.
+- **Owner decision 2026-10-23 (Windows):** the onboarding video is dropped on Windows. There is no video host and no 40 s demo trigger, and `onboarding_video_completed` never fires. The bullets above that key off the video (HLS playback, the 40 s demo, the video-end closing prompt, PTT ignored while the video plays) have no video to key off on Windows. The music still plays as specified: `ff.mp3` at 0.3, fading to 0 between 90 s and 93 s (T-038, `OnboardingTimingTests.MusicFadesOver3sAfter90s`). See ADR 001, "Addendum — onboarding video dropped".
 
 **ONB-02 · Onboarding demo interaction**
 - **Given** the video reaches 40 s, and `voiceState` is `idle` or `responding`.
@@ -570,6 +571,7 @@ Swift: [MenuBarPanelManager.swift](../leanring-buddy/MenuBarPanelManager.swift),
 - **When** they click "Watch Onboarding Again" ([CompanionPanelView.swift:699-715](../leanring-buddy/CompanionPanelView.swift#L699-L715)).
 - **Then** the panel is dismissed, `onboarding_replayed` fires, the music starts, and the overlay is recreated as a first appearance ([CompanionManager.swift:223-231](../leanring-buddy/CompanionManager.swift#L223-L231)).
 - **Fixture & harness**: Manual-VM. **Evidence:** a recording.
+- **Owner decision 2026-10-23 (Windows):** the onboarding video is dropped on Windows. There is no video host and no 40 s demo trigger, and `onboarding_video_completed` never fires. Replaying onboarding restarts the music and the first-appearance overlay only.
 
 ---
 

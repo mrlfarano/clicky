@@ -1,0 +1,107 @@
+<!-- DesignSystem.swift's DS tokens as WPF resources (audit B11): the colours and corner radii the panel uses, as data.
+     Opacity variants (Color.white.opacity(0.08) etc.) are written as ARGB, the B11 "ARGB arithmetic" row. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- DS.Colors (DesignSystem.swift:21-137). -->
+    <SolidColorBrush x:Key="DsBackground" Color="#101211" />
+    <SolidColorBrush x:Key="DsBorderSubtle" Color="#373B39" />
+    <SolidColorBrush x:Key="DsTextPrimary" Color="#ECEEED" />
+    <SolidColorBrush x:Key="DsTextSecondary" Color="#ADB5B2" />
+    <SolidColorBrush x:Key="DsTextTertiary" Color="#6B736F" />
+    <SolidColorBrush x:Key="DsTextOnAccent" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DsBlue400" Color="#60A5FA" />
+    <SolidColorBrush x:Key="DsAccent" Color="#2563EB" />
+    <SolidColorBrush x:Key="DsAccentHover" Color="#1D4ED8" />
+    <SolidColorBrush x:Key="DsSuccess" Color="#34D399" />
+    <SolidColorBrush x:Key="DsWarning" Color="#FFB224" />
+    <!-- The intro's "if you are still sus" line, Color(red: 0.9, green: 0.4, blue: 0.4) (CompanionPanelView.swift:175). -->
+    <SolidColorBrush x:Key="DsIntroWarningText" Color="#E66666" />
+    <!-- Color.white.opacity(0.06 / 0.08 / 0.1): card fill, field fill and close-button circle, selected segment. -->
+    <SolidColorBrush x:Key="DsWhite06" Color="#0FFFFFFF" />
+    <SolidColorBrush x:Key="DsWhite08" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="DsWhite10" Color="#1AFFFFFF" />
+
+    <!-- DS.CornerRadius (DesignSystem.swift:200-210); pill is a capsule, so buttons use their half-height instead. -->
+    <CornerRadius x:Key="DsCornerRadiusSmall">6</CornerRadius>
+    <CornerRadius x:Key="DsCornerRadiusMedium">8</CornerRadius>
+    <CornerRadius x:Key="DsCornerRadiusLarge">10</CornerRadius>
+    <CornerRadius x:Key="DsCornerRadiusExtraLarge">12</CornerRadius>
+
+    <!-- SF Symbols become Segoe icon glyphs (audit B8). Segoe MDL2 Assets ships with every supported Windows 10 build
+         and Segoe Fluent Icons with Windows 11 at the same code points, so no font file or licence is bundled. -->
+    <FontFamily x:Key="DsIconFontFamily">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    <sys:String x:Key="DsIconXmark">&#xE711;</sys:String>
+    <sys:String x:Key="DsIconMic">&#xE720;</sys:String>
+    <sys:String x:Key="DsIconPower">&#xE7E8;</sys:String>
+    <sys:String x:Key="DsIconPlayCircle">&#xE768;</sys:String>
+    <sys:String x:Key="DsIconBubbleLeftFill">&#xE8BD;</sys:String>
+    <sys:String x:Key="DsIconReportProblem">&#xE7BA;</sys:String>
+    <sys:String x:Key="DsIconKeyboard">&#xE765;</sys:String>
+
+    <!-- AGENTS.md: every button shows the hand cursor, and hover gives visual feedback (B9); tooltips show at once (B10). -->
+    <Style x:Key="DsButtonBaseStyle" TargetType="ButtonBase">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource DsTextTertiary}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ButtonBase">
+                    <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource DsCornerRadiusMedium}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.8" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Grant, Submit, Start: DS.Colors.accent fill, accentHover on hover. -->
+    <Style x:Key="DsAccentButtonStyle" TargetType="Button" BasedOn="{StaticResource DsButtonBaseStyle}">
+        <Setter Property="Background" Value="{StaticResource DsAccent}" />
+        <Setter Property="Foreground" Value="{StaticResource DsTextOnAccent}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource DsAccentHover}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The feedback and report cards (CompanionPanelView.swift:646-679). -->
+    <Style x:Key="DsCardButtonStyle" TargetType="Button" BasedOn="{StaticResource DsButtonBaseStyle}">
+        <Setter Property="Background" Value="{StaticResource DsWhite06}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DsBorderSubtle}" />
+        <Setter Property="BorderThickness" Value="0.5" />
+        <Setter Property="Foreground" Value="{StaticResource DsTextSecondary}" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+
+    <!-- One segment of the model and shortcut pickers (CompanionPanelView.swift:625-642). -->
+    <Style x:Key="DsSegmentRadioButtonStyle" TargetType="RadioButton" BasedOn="{StaticResource DsButtonBaseStyle}">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Padding" Value="10,5" />
+        <Style.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background" Value="{StaticResource DsWhite10}" />
+                <Setter Property="Foreground" Value="{StaticResource DsTextPrimary}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

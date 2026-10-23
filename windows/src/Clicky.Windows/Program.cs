@@ -343,11 +343,10 @@ internal static class Program
         // exercises startup and the ordered shutdown, and a panel opening on CI runners would add nothing but noise.
         if (options.DebugQuitAfter is null)
         {
-            StartTrayIconAndPanel(application, effectiveUserSettings, userSettingsStore, claudeClient, overlayWindow, companionCoordinator, timeProvider);
+            StartTrayIconAndPanel(application, effectiveUserSettings, userSettingsStore, claudeClient, overlayWindow, companionCoordinator, shortcutMonitor, timeProvider);
         }
 
-        // shortcut: --debug-quit-after-ms is the only quit trigger until the tray's "Quit Clicky" lands (WS-18);
-        // that menu item calls ShutDownInOrder too.
+        // The panel's "Quit Clicky" (PNL-05) calls ShutDownInOrder too.
         if (options.DebugQuitAfter is TimeSpan debugQuitAfter)
         {
             await Task.Delay(debugQuitAfter, timeProvider);
@@ -389,6 +388,7 @@ internal static class Program
         ClaudeClient claudeClient,
         CursorOverlayWindow overlayWindow,
         CompanionCoordinator companionCoordinator,
+        GlobalPushToTalkShortcutMonitor shortcutMonitor,
         TimeProvider timeProvider)
     {
         // The panel's mic-denied rules read the live permission. The first probe runs before the polling loop's
@@ -402,7 +402,9 @@ internal static class Program
             userSettingsStore,
             effectiveUserSettings,
             launchUri: uri => Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose(),
-            onSelectedClaudeModelChanged: selectedClaudeModel => claudeClient.Model = selectedClaudeModel);
+            onSelectedClaudeModelChanged: selectedClaudeModel => claudeClient.Model = selectedClaudeModel,
+            onPushToTalkShortcutChanged: shortcutMonitor.ChangeShortcut,
+            quitApplication: () => ShutDownInOrder(application, shortcutMonitor, companionCoordinator));
         var panelWindow = new CompanionPanelWindow(panelViewModel);
         panelWindow.CreateHiddenWindowHandle();
         var trayIcon = new ClickyTrayIcon();

@@ -748,9 +748,9 @@
         "Given the model picker, when Opus is chosen, then PanelViewModelTests.ModelPickerPersists asserts selectedClaudeModel=claude-opus-4-6 in settings, and the picker is hidden until onboarded and mic granted."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/PanelViewModelTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-19 part 1 (B7, B12). Mac Screen Recording and Accessibility rows dropped. QA-matrix: PNL-03/04/06 screenshots on Win10 and Win11, Tab-order and Narrator passes.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/37",
+      "dev_notes": "PanelViewModel + XAML: header (all combos vs panel-status vector), mic-only permission row with ms-settings:privacy-microphone Grant, model picker persisting through real store (hidden until onboarded+mic). DS inline hex for T-033. QA: screenshots/tab order/Narrator. Known: per-exchange reports record startup model; requests use live.",
       "qa_result": null
     },
     {
@@ -797,9 +797,9 @@
         "Given an update applied, when the Run value is re-read, then InstallHooksTests.RunKeyStableAcrossUpdate asserts the path is unchanged."
       ],
       "test_path": ".github/workflows/ci.yml",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-20 (A3). Velopack after-install/before-uninstall hooks. InstallHooksTests live in windows/tests/Clicky.Windows.Tests/InstallHooksTests.cs. QA-matrix: clean 1903 VM with no .NET preinstalled, and Win11; first launch auto-opens the panel.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/38",
+      "dev_notes": "Velopack install hook: HKCU Run/Clicky from running exe path; Start-menu shortcut; CI install-hooks green on runner (install asserts Run+shortcut; silent uninstall removes both; Run key stable across update). Runner admin so no-UAC implied only (per-user targets asserted).",
       "qa_result": null
     },
     {

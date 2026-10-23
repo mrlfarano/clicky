@@ -206,10 +206,12 @@ public sealed partial class CoordinatorReplayTests
 
         IReadOnlyList<AnalyticsEventReport> IAnalyticsSink.RecordedEvents => RecordedEvents;
 
-        public void TrackEvent(string eventName, IReadOnlyDictionary<string, string?>? eventProperties = null)
+        public void TrackEvent(AnalyticsEvent analyticsEvent)
         {
             handlerThreadIds.Enqueue(Environment.CurrentManagedThreadId);
-            RecordedEvents.Add(new AnalyticsEventReport(eventName, null));
+            RecordedEvents.Add(AnalyticsEventReport.FromAnalyticsEvent(analyticsEvent));
         }
+
+        public void Identify(AnalyticsIdentify analyticsIdentify) => handlerThreadIds.Enqueue(Environment.CurrentManagedThreadId);
     }
 }

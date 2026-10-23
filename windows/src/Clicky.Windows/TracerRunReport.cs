@@ -120,7 +120,13 @@ internal sealed record VoiceStateTimelineEntry(long TMs, string State);
 /// <summary>One analytics event exactly as it was handed to the analytics sink (parity spec AN-01).</summary>
 internal sealed record AnalyticsEventReport(
     string Name,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, string?>? Properties);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonObject? Properties)
+{
+    /// <summary>A copy of the catalogue event; an event without properties reports none, as before T-044.</summary>
+    public static AnalyticsEventReport FromAnalyticsEvent(AnalyticsEvent analyticsEvent) => new(
+        analyticsEvent.EventName,
+        analyticsEvent.EventProperties.Count == 0 ? null : (JsonObject)analyticsEvent.EventProperties.DeepClone());
+}
 
 /// <summary>One request as the replay handler received it: the HTTP method and the URL's absolute path.</summary>
 internal sealed record HttpRequestReport(string Method, string Path);

@@ -87,12 +87,14 @@ internal static class CiWorkflowSource
         // comments) belong to the step item they follow.
         var stepBlocks = new List<string>();
         int currentStepStartLineIndex = -1;
+        int jobEndLineIndexExclusive = workflowLines.Length;
         for (int lineIndex = jobStartLineIndex + 1; lineIndex < workflowLines.Length; lineIndex++)
         {
             string line = workflowLines[lineIndex];
             bool isNextJobKeyLine = line.StartsWith("  ") && !line.StartsWith("    ") && line.TrimEnd().EndsWith(':');
             if (isNextJobKeyLine)
             {
+                jobEndLineIndexExclusive = lineIndex;
                 break;
             }
             if (line.StartsWith(StepListItemPrefix))
@@ -106,7 +108,7 @@ internal static class CiWorkflowSource
         }
         if (currentStepStartLineIndex >= 0)
         {
-            stepBlocks.Add(JoinLines(workflowLines, currentStepStartLineIndex, workflowLines.Length));
+            stepBlocks.Add(JoinLines(workflowLines, currentStepStartLineIndex, jobEndLineIndexExclusive));
         }
         return stepBlocks;
     }

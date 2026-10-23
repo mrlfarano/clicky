@@ -21,7 +21,9 @@ Playbook §8 requirements vs reality — the gate is NOT green; it is owner-gate
 
 ## Current phase
 
-**Phase 6 — Development. Waves 1–3 complete: 16/44 tasks done.** Wave 3: T-015 signing [#15](https://github.com/mrlfarano/clicky/pull/15), T-010 session reducer [#16](https://github.com/mrlfarano/clicky/pull/16), T-005 virtual-desktop spike + PNT-07 spec gap closed [#17](https://github.com/mrlfarano/clicky/pull/17). Wave 4 in flight: T-011 (reducer: transient-hide/persistent/panel-status), T-035 (update service). Blocked on macOS: T-008, T-009. **New merge-craft rule:** strict required contexts invalidate sibling PRs after every merge — pre-merge the latest integration branch into each PR branch before pushing (poller: `.scratch/windows-port/poll_pr.py`).
+**Phase 8 — RELEASE GATE AUDITED (2026-10-23); the ship motion is OWNER-GATED.** Phase 6 development complete: 42/44 tasks merged via 44 CI-green PRs (T-008/T-009 remain macOS-blocked). Phase 7 blind QA complete: 39/44 pass, 0 fail, 3 environment-gated, 2 macOS-blocked. Suite: 239 Core + 123 Windows + 1 designed skip; latest green CI run 39892140116 on head f386b25a (+ bookkeeping PR #44). See the audit table below for exactly what the owner must do to ship.
+
+#15](https://github.com/mrlfarano/clicky/pull/15), T-010 session reducer [#16](https://github.com/mrlfarano/clicky/pull/16), T-005 virtual-desktop spike + PNT-07 spec gap closed [#17](https://github.com/mrlfarano/clicky/pull/17). Wave 4 in flight: T-011 (reducer: transient-hide/persistent/panel-status), T-035 (update service). Blocked on macOS: T-008, T-009. **New merge-craft rule:** strict required contexts invalidate sibling PRs after every merge — pre-merge the latest integration branch into each PR branch before pushing (poller: `.scratch/windows-port/poll_pr.py`).
 
 ### Incidents & hardenings (2026-10-22)
 

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Windows.Win32;
@@ -24,7 +23,7 @@ internal sealed class CompanionPanelWindow : Window
 
     private const int WindowMessageSettingChange = 0x001A; // WM_SETTINGCHANGE
 
-    private readonly Border panelContentBorder;
+    private readonly CompanionPanelView panelView;
     private HWND windowHandle;
 
     public CompanionPanelWindow(PanelViewModel panelViewModel)
@@ -37,16 +36,10 @@ internal sealed class CompanionPanelWindow : Window
         ResizeMode = ResizeMode.NoResize;
         Width = PanelWidthDip;
 
-        var panelView = new CompanionPanelView { DataContext = panelViewModel };
+        // The view draws its own DS background and rounded corners (DesignSystem.xaml).
+        panelView = new CompanionPanelView { DataContext = panelViewModel };
         panelView.CloseButton.Click += (_, _) => CloseButtonClicked?.Invoke();
-        panelContentBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1E)),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(16, 12, 12, 12),
-            Child = panelView,
-        };
-        Content = panelContentBorder;
+        Content = panelView;
 
         SourceInitialized += (_, _) => ApplyPanelWindowStyles();
     }
@@ -77,11 +70,11 @@ internal sealed class CompanionPanelWindow : Window
             PInvoke.MonitorFromPoint(iconCenterPx, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST),
             isCursorMonitor: false);
 
-        panelContentBorder.Measure(new Size(PanelWidthDip, double.PositiveInfinity));
+        panelView.Measure(new Size(PanelWidthDip, double.PositiveInfinity));
         VirtualScreenRect panelRectPx = PanelAnchor.Compute(
             ClickyTrayIcon.ReadTaskbarEdge(),
             iconRectPx,
-            new DipSize(PanelWidthDip, panelContentBorder.DesiredSize.Height),
+            new DipSize(PanelWidthDip, panelView.DesiredSize.Height),
             iconMonitor.WorkArea,
             iconMonitor.DpiScale);
 

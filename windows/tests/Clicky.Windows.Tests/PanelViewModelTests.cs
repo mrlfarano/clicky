@@ -1,5 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Clicky.Core;
 using Xunit;
 
@@ -79,7 +83,7 @@ public sealed class PanelViewModelTests
             PanelViewModel setupIncompleteViewModel = CreatePanelViewModel(
                 CompanionSettings.Defaults with { HasCompletedOnboarding = hasCompletedOnboarding }, Path.GetTempPath(), launchedUris: []);
             setupIncompleteViewModel.Refresh(hasMicrophonePermission, isOverlayVisible: false, CompanionVoiceState.Idle);
-            Assert.False(setupIncompleteViewModel.IsModelPickerVisible, $"onboarded={hasCompletedOnboarding} mic={hasMicrophonePermission}");
+            Assert.False(setupIncompleteViewModel.IsSetupComplete, $"onboarded={hasCompletedOnboarding} mic={hasMicrophonePermission}");
         }
 
         string dataDirectoryPath = ClickyProcessLauncher.CreateTempDataDirectory();
@@ -88,9 +92,10 @@ public sealed class PanelViewModelTests
             var selectedModelsApplied = new List<string>();
             CompanionSettings onboardedSettings = CompanionSettings.Defaults with { HasCompletedOnboarding = true };
             var panelViewModel = new PanelViewModel(
-                new ClickyUserSettingsStore(dataDirectoryPath), onboardedSettings, launchUri: _ => { }, selectedModelsApplied.Add);
+                new ClickyUserSettingsStore(dataDirectoryPath), onboardedSettings, launchUri: _ => { }, selectedModelsApplied.Add,
+                onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { });
             panelViewModel.Refresh(hasMicrophonePermission: true, isOverlayVisible: false, CompanionVoiceState.Idle);
-            Assert.True(panelViewModel.IsModelPickerVisible);
+            Assert.True(panelViewModel.IsSetupComplete);
             Assert.True(panelViewModel.IsSonnetSelected);
 
             panelViewModel.SelectClaudeModelCommand.Execute("claude-opus-4-6");
@@ -110,9 +115,94 @@ public sealed class PanelViewModelTests
         }
     }
 
-    // Only ModelPickerPersists selects a model, so the other tests' store directory is never written.
+    [Fact]
+    public void ShortcutPickerWritesSettingAndHotSwaps()
+    {
+        string dataDirectoryPath = ClickyProcessLauncher.CreateTempDataDirectory();
+        try
+        {
+            // Never started, so no system-wide hook is installed; ChangeShortcut only writes the translator channel.
+            var shortcutMonitor = new GlobalPushToTalkShortcutMonitor(
+                PushToTalkShortcutOption.ControlOption, stallFirstHookCallback: false, TimeProvider.System, new CountingKeyboardHookInstallerFake());
+            CompanionSettings onboardedSettings = CompanionSettings.Defaults with { HasCompletedOnboarding = true };
+            var panelViewModel = new PanelViewModel(
+                new ClickyUserSettingsStore(dataDirectoryPath), onboardedSettings, launchUri: _ => { }, onSelectedClaudeModelChanged: _ => { },
+                shortcutMonitor.ChangeShortcut, quitApplication: () => { });
+            panelViewModel.Refresh(hasMicrophonePermission: true, isOverlayVisible: false, CompanionVoiceState.Idle);
+            Assert.Equal(CompanionPanelStatus.PushToTalkHintCopy, panelViewModel.PushToTalkHintText);
+            Assert.Equal([PushToTalkShortcutOption.ControlOption], SelectedShortcutOptions(panelViewModel));
+
+            panelViewModel.SelectPushToTalkShortcutCommand.Execute(PushToTalkShortcutOption.ShiftControlSpace);
+
+            CompanionSettingsMergeResult reloaded = new ClickyUserSettingsStore(dataDirectoryPath).Load();
+            Assert.Equal(onboardedSettings with { PushToTalkShortcut = PushToTalkShortcutOption.ShiftControlSpace }, reloaded.Settings);
+            Assert.Equal(
+                "shiftControlSpace",
+                (string?)JsonNode.Parse(File.ReadAllText(Path.Combine(dataDirectoryPath, "settings.json")))![CompanionSettingsMerger.PushToTalkShortcutSettingsFileKeyName]);
+            Assert.True(shortcutMonitor.KeyboardHookSignals.Reader.TryRead(out KeyboardHookSignal hotSwapSignal));
+            Assert.Equal(KeyboardHookSignal.ShortcutOptionChangedTo(PushToTalkShortcutOption.ShiftControlSpace), hotSwapSignal);
+            Assert.Equal([PushToTalkShortcutOption.ShiftControlSpace], SelectedShortcutOptions(panelViewModel));
+            Assert.Equal("Hold Shift+Ctrl+Space to talk.", panelViewModel.PushToTalkHintText);
+
+            // Choosing the shortcut already in effect sends nothing more to the hook.
+            panelViewModel.SelectPushToTalkShortcutCommand.Execute(PushToTalkShortcutOption.ShiftControlSpace);
+            Assert.False(shortcutMonitor.KeyboardHookSignals.Reader.TryRead(out _));
+        }
+        finally
+        {
+            Directory.Delete(dataDirectoryPath, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ShowClickyToggleNotRendered()
+    {
+        var launchedUris = new List<string>();
+        // Onboarded with the microphone granted: the state in which the Mac's commented-out toggle would show (CompanionPanelView.swift:53).
+        PanelViewModel panelViewModel = CreatePanelViewModel(
+            CompanionSettings.Defaults with { HasCompletedOnboarding = true, HasSubmittedEmail = true }, Path.GetTempPath(), launchedUris);
+        panelViewModel.Refresh(hasMicrophonePermission: true, isOverlayVisible: true, CompanionVoiceState.Idle);
+
+        RenderedCompanionPanel.Run(panelViewModel, panelView =>
+        {
+            List<DependencyObject> renderedElements = RenderedCompanionPanel.WalkVisualTree(panelView, stopAtInteractiveControls: false).ToList();
+            // No switch: the only toggle buttons are the picker segments.
+            Assert.All(renderedElements.OfType<ToggleButton>(), toggleButton => Assert.IsType<RadioButton>(toggleButton));
+            Assert.DoesNotContain(renderedElements, renderedElement => ReadRenderedText(renderedElement).Contains("Show Clicky", StringComparison.OrdinalIgnoreCase));
+
+            Button reportProblemButton = RenderedCompanionPanel.FindInteractiveControls(panelView)
+                .OfType<Button>()
+                .Single(button => AutomationProperties.GetName(button) == "Report a problem");
+            reportProblemButton.Command.Execute(reportProblemButton.CommandParameter);
+        });
+
+        Assert.Equal(2, launchedUris.Count);
+        Assert.Equal(ClickyCrashReporter.CrashDirectoryPath, launchedUris[0]);
+        Assert.True(Directory.Exists(ClickyCrashReporter.CrashDirectoryPath));
+        var newIssueUri = new Uri(launchedUris[1]);
+        Assert.Equal("https://github.com/mrlfarano/clicky/issues/new", newIssueUri.GetLeftPart(UriPartial.Path));
+        string decodedIssueQuery = Uri.UnescapeDataString(newIssueUri.Query);
+        Assert.StartsWith("?title=[Windows] &body=", decodedIssueQuery);
+        Assert.Contains($"**Clicky version:** {typeof(PanelViewModel).Assembly.GetName().Version}", decodedIssueQuery);
+        Assert.Contains($"**Windows:** {Environment.OSVersion.VersionString}", decodedIssueQuery);
+        // The crash folder path carries the Windows user name, so it must not land in a public issue.
+        Assert.DoesNotContain(ClickyCrashReporter.CrashDirectoryPath, decodedIssueQuery);
+    }
+
+    private static PushToTalkShortcutOption[] SelectedShortcutOptions(PanelViewModel panelViewModel) =>
+        panelViewModel.ShortcutChoices.Where(shortcutChoice => shortcutChoice.IsSelected).Select(shortcutChoice => shortcutChoice.ShortcutOption).ToArray();
+
+    private static string ReadRenderedText(DependencyObject renderedElement) => renderedElement switch
+    {
+        TextBlock textBlock => textBlock.Text,
+        ContentControl { Content: string contentText } => contentText,
+        _ => AutomationProperties.GetName(renderedElement),
+    };
+
+    // Only ModelPickerPersists and ShortcutPickerWritesSettingAndHotSwaps write settings, each to its own temp directory.
     private static PanelViewModel CreatePanelViewModel(CompanionSettings userSettings, string settingsDirectoryPath, List<string> launchedUris) =>
-        new(new ClickyUserSettingsStore(settingsDirectoryPath), userSettings, launchedUris.Add, onSelectedClaudeModelChanged: _ => { });
+        new(new ClickyUserSettingsStore(settingsDirectoryPath), userSettings, launchedUris.Add, onSelectedClaudeModelChanged: _ => { },
+            onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { });
 
     private static IEnumerable<JsonObject> LoadPanelStatusCases() =>
         JsonNode.Parse(File.ReadAllText(Path.Combine(ClickyReplayProcess.RepositoryRootDirectory, "shared", "golden", "session-reducer.json")))!

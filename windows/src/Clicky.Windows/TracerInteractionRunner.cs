@@ -20,6 +20,7 @@ internal sealed class TracerInteractionRunner(
     CompanionSettings effectiveUserSettings,
     ClaudeClient claudeClient,
     IReadOnlyCollection<HttpRequestReport> replayHttpRequests,
+    IReadOnlyCollection<WebSocketFrameReport> replayWebSocketFrames,
     CursorOverlayWindow overlayWindow,
     MonitorScreenCapturer screenCapturer,
     IAnalyticsSink analyticsSink,
@@ -96,6 +97,7 @@ internal sealed class TracerInteractionRunner(
         report.TtsRequests.AddRange(textToSpeechSink.RecordedRequests);
         report.FallbackUtterances.AddRange(fallbackSpeechSink.RecordedUtterances);
         report.HttpRequests.AddRange(replayHttpRequests);
+        report.WebSocketFrames.AddRange(replayWebSocketFrames);
     }
 
     private async Task<string> CaptureSendAndStreamAsync(TracerRunReport report, string transcript, long submitTMs, CancellationToken cancellationToken)

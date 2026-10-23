@@ -2,7 +2,7 @@
   "schema": 1,
   "seam": "session-reducer",
   "swiftAnchor": "leanring-buddy/CompanionManager.swift:430-756",
-  "description": "Seam 6. Document swiftAnchor is the primary CompanionManager state-machine range; additional anchors (CompanionManager.swift:175-195 keyterms; CompanionPanelView.swift:128-130, 728-759 panel status) live on the cases they justify. Cases without a group start from CompanionSessionState.Initial (isClickyCursorEnabled true, overlay hidden, plus input.initialHistory when present) and feed input.events to CompanionSession.Reduce in order on a virtual clock. Event types: started {isClickyCursorEnabled, hasCompletedOnboarding, hasMicrophonePermission}, shortcutPressed, shortcutReleased, recordingStarted, transcriptFinal {text}, responseReady {requestId, text}, responseFailed {requestId, error}, ttsStarted, ttsEnded, pointingFinished, and advance {ms}, which moves the clock and reduces a transientHideElapsed for every scheduleTransientHide timer that came due. expected.voiceStates and expected.effects have one entry per event (the state after it, and the effects it emitted, in order); expected.history is the conversation history after the last event. Effects are written as 'showOverlay', 'hideOverlay', 'scheduleTransientHide <id> <delay>ms', 'dismissPanel', 'cancelChatRequest <id>', 'stopTtsPlayback', 'clearPointingTarget', 'startRecording', 'stopRecording', 'startChatRequest <id> history=<count>', 'pointAtElement <x>,<y> <label>', 'speakResponse <text>', 'speakFallbackUtterance <text>' and 'analytics <event name>[: <content>]'. Cases in group panel-status feed input {hasCompletedOnboarding, hasMicrophonePermission, isOverlayVisible} with each voiceState to CompanionPanelStatus.From; expected.byVoiceState gives statusText and dotColor (a DS colour token) per voiceState, and expected.hintText the push-to-talk hint (null when the panel shows setup copy instead). Parity spec PTT-02, PTT-03, CLA-06, CLA-07, AN-02, TTS-02, ONB-03, PNL-06.",
+  "description": "Seam 6. Document swiftAnchor is the primary CompanionManager state-machine range; additional anchors (CompanionManager.swift:175-195 keyterms; CompanionPanelView.swift:128-130, 728-759 panel status) live on the cases they justify. Cases without a group start from CompanionSessionState.Initial (isClickyCursorEnabled true, overlay hidden, plus input.initialHistory when present) and feed input.events to CompanionSession.Reduce in order on a virtual clock. Event types: started {isClickyCursorEnabled, hasCompletedOnboarding, hasMicrophonePermission}, shortcutPressed, shortcutReleased, recordingStarted, transcriptFinal {text}, dictationCancelled, responseReady {requestId, text}, responseFailed {requestId, error}, ttsStarted, ttsEnded, pointingFinished, and advance {ms}, which moves the clock and reduces a transientHideElapsed for every scheduleTransientHide timer that came due. expected.voiceStates and expected.effects have one entry per event (the state after it, and the effects it emitted, in order); expected.history is the conversation history after the last event. Effects are written as 'showOverlay', 'hideOverlay', 'scheduleTransientHide <id> <delay>ms', 'dismissPanel', 'cancelChatRequest <id>', 'stopTtsPlayback', 'clearPointingTarget', 'startRecording', 'stopRecording', 'startChatRequest <id> history=<count>', 'pointAtElement <x>,<y> <label>', 'speakResponse <text>', 'speakFallbackUtterance <text>' and 'analytics <event name>[: <content>]'. Cases in group panel-status feed input {hasCompletedOnboarding, hasMicrophonePermission, isOverlayVisible} with each voiceState to CompanionPanelStatus.From; expected.byVoiceState gives statusText and dotColor (a DS colour token) per voiceState, and expected.hintText the push-to-talk hint (null when the panel shows setup copy instead). Parity spec PTT-02, PTT-03, CLA-06, CLA-07, AN-02, TTS-02, ONB-03, PNL-06.",
   "cases": [
     {
       "id": "full-exchange-with-point",
@@ -168,6 +168,31 @@
         "effects": [
           ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
           ["analytics push_to_talk_released", "stopRecording"],
+          []
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "dictation-error-resets-idle",
+      "branch": "dictation-cancelled",
+      "swiftAnchor": "leanring-buddy/BuddyDictationManager.swift:465-473, 562-579",
+      "input": {
+        "events": [
+          { "type": "shortcutPressed" },
+          { "type": "recordingStarted" },
+          { "type": "dictationCancelled" },
+          { "type": "shortcutReleased" },
+          { "type": "dictationCancelled" }
+        ]
+      },
+      "expected": {
+        "voiceStates": ["processing", "listening", "idle", "idle", "idle"],
+        "effects": [
+          ["dismissPanel", "stopTtsPlayback", "clearPointingTarget", "analytics push_to_talk_started", "startRecording"],
+          [],
+          [],
+          ["analytics push_to_talk_released"],
           []
         ],
         "history": []

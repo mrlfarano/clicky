@@ -4,7 +4,7 @@ namespace Clicky.Windows;
 
 /// <summary>
 /// Receives the PCM16 mono 16 kHz little-endian byte frames the capture pipeline produces (plan
-/// seam 1). The AssemblyAI websocket transport (T-023) will be the live implementation.
+/// seam 1). <see cref="AssemblyAiStreamingTranscriptionProvider"/> is the implementation (T-023).
 /// </summary>
 internal interface IPcmFrameSink
 {

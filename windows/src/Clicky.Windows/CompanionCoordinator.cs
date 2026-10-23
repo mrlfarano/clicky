@@ -10,7 +10,9 @@ namespace Clicky.Windows;
 /// the capture → /chat → SSE plumbing of <see cref="TracerInteractionRunner"/>, and the sinks. Every
 /// reduction and effect runs on the overlay's dispatcher (audit G7); <see cref="Post"/> is the way in from
 /// other threads. <see cref="VoiceState"/> is observable state driven only by the reducer (audit G9), and
-/// every change of it lands in <see cref="VoiceStateTimeline"/> for the report.
+/// every change of it lands in <see cref="VoiceStateTimeline"/> for the report. With a
+/// <paramref name="transcriptionProvider"/> (live, and replay with a recorded socket) a press dictates through
+/// the microphone and AssemblyAI; without one the stub recorder "transcribes" the fixed tracer prompt.
 /// </summary>
 internal sealed partial class CompanionCoordinator(
     TracerInteractionRunner interactionRunner,
@@ -21,7 +23,9 @@ internal sealed partial class CompanionCoordinator(
     ITextToSpeechSink textToSpeechSink,
     IFallbackSpeechSink fallbackSpeechSink,
     IAudioOutput audioOutput,
-    CompanionVoiceStateReporter voiceStateReporter) : ObservableObject
+    CompanionVoiceStateReporter voiceStateReporter,
+    AssemblyAiStreamingTranscriptionProvider? transcriptionProvider = null,
+    Lazy<MicrophoneCapturePipeline>? microphoneCapturePipeline = null) : ObservableObject
 {
     private readonly Queue<(CompanionSessionEvent SessionEvent, long EventTMs)> pendingSessionEvents = new();
     private readonly List<VoiceStateTimelineEntry> voiceStateTimeline = [];
@@ -46,6 +50,12 @@ internal sealed partial class CompanionCoordinator(
     private Task latestExchangeTask = Task.CompletedTask;
     private Task latestPointingTask = Task.CompletedTask;
     private Task latestSpeechTask = Task.CompletedTask;
+
+    // The dictation in progress: its start is cancelled by a release before the session opened, and its session
+    // is set from the moment audio flows until the session's finalize machine ends it.
+    private CancellationTokenSource? dictationStartCancellation;
+    private AssemblyAiStreamingTranscriptionSession? activeTranscriptionSession;
+    private Task latestDictationTask = Task.CompletedTask;
 
     // Generates VoiceState with change notification. Only ApplySessionState sets it, from the reducer's state.
     [ObservableProperty]
@@ -72,8 +82,12 @@ internal sealed partial class CompanionCoordinator(
     public void StopForShutdown()
     {
         overlayWindow.Dispatcher.VerifyAccess();
-        // shortcut: recording is a stub with no capture to stop, so cancelling dictation only drops the phase;
-        // stop the mic pipeline here once WS-13 wires it into the coordinator.
+        dictationStartCancellation?.Cancel();
+        activeTranscriptionSession?.Cancel();
+        if (microphoneCapturePipeline?.IsValueCreated == true)
+        {
+            microphoneCapturePipeline.Value.StopCapture();
+        }
         sessionState = sessionState with { DictationPhase = CompanionDictationPhase.None };
         ClickyLog.Write("shutdown: dictation cancelled");
         overlayWindow.Hide();
@@ -93,19 +107,24 @@ internal sealed partial class CompanionCoordinator(
         replayRunReport = report;
 
         // The tracer's fixed prompt stands in for a dictation that has just finalized, so the run starts where
-        // an exchange starts after a release, and the script's events are the only shortcut transitions.
-        ApplySessionState(
-            CompanionSessionState.Initial with { DictationPhase = CompanionDictationPhase.FinalizingTranscript, VoiceState = CompanionVoiceState.Processing },
-            eventTMs: 0);
-        Dispatch(new CompanionSessionEvent.TranscriptFinal(tracerTranscriptText), eventTMs: 0);
+        // an exchange starts after a release, and the script's events are the only shortcut transitions. With a
+        // recorded socket the run starts idle instead: the script's press and release dictate the transcript.
+        if (transcriptionProvider is null)
+        {
+            ApplySessionState(
+                CompanionSessionState.Initial with { DictationPhase = CompanionDictationPhase.FinalizingTranscript, VoiceState = CompanionVoiceState.Processing },
+                eventTMs: 0);
+            Dispatch(new CompanionSessionEvent.TranscriptFinal(tracerTranscriptText), eventTMs: 0);
+        }
 
         // The report waits for the scripted horizon even when the exchange failed, so no scripted event is
         // lost to the write racing the script.
         await DeliverScriptedInputEventsAsync(replayScript);
-        // A scripted release starts another exchange, and a reply ends only when its speech has, so wait until
-        // the latest exchange and the latest speech have both finished.
-        while (!latestExchangeTask.IsCompleted || !latestSpeechTask.IsCompleted)
+        // A scripted release finalizes a dictation, starts an exchange, and a reply ends only when its speech
+        // has, so wait until the dictation, the exchange and the speech have all finished.
+        while (!latestDictationTask.IsCompleted || !latestExchangeTask.IsCompleted || !latestSpeechTask.IsCompleted)
         {
+            await latestDictationTask;
             await latestExchangeTask;
             await latestSpeechTask;
         }
@@ -222,8 +241,15 @@ internal sealed partial class CompanionCoordinator(
                     ClickyLog.Write("tts stopped (preempted)");
                 }
                 break;
-            // shortcut: recording is a stub — it starts at once and "transcribes" the fixed tracer prompt, so
-            // a press/release submits that prompt; replace with mic capture + transcription (WS-13/WS-14).
+            case CompanionSessionEffect.StartRecording when transcriptionProvider is not null:
+                dictationStartCancellation = new CancellationTokenSource();
+                latestDictationTask = RunDictationAsync(dictationStartCancellation.Token);
+                break;
+            case CompanionSessionEffect.StopRecording when transcriptionProvider is not null:
+                StopDictationAudio();
+                break;
+            // Without a transcription provider recording is a stub: it starts at once and "transcribes" the fixed
+            // tracer prompt, so a press/release submits that prompt.
             case CompanionSessionEffect.StartRecording:
                 Dispatch(new CompanionSessionEvent.RecordingStarted(), currentEventTMs);
                 break;
@@ -254,6 +280,81 @@ internal sealed partial class CompanionCoordinator(
             default:
                 throw new InvalidOperationException($"No executor for session effect {effect}.");
         }
+    }
+
+    /// <summary>
+    /// One push-to-talk dictation (BuddyDictationManager.swift:398-474, 562-606): the session opens first, then
+    /// the microphone, and only then is the user listening. The session's finalize machine decides how it ends:
+    /// a transcript to submit, an empty one, or an error with nothing to submit. Errors show no UI (STT-08).
+    /// </summary>
+    private async Task RunDictationAsync(CancellationToken startCancellationToken)
+    {
+        AssemblyAiStreamingTranscriptionSession transcriptionSession;
+        try
+        {
+            transcriptionSession = await transcriptionProvider!.StartStreamingSessionAsync(
+                TranscriptionKeyterms.BuildTranscriptionKeyterms([]), startCancellationToken);
+        }
+        catch (Exception) when (startCancellationToken.IsCancellationRequested)
+        {
+            return; // released before the session opened: the reducer has already reset (STT-05c)
+        }
+        catch (Exception startException)
+        {
+            ClickyLog.Write($"dictation: session start failed: {startException.Message}");
+            Dispatch(new CompanionSessionEvent.DictationCancelled(), ElapsedTMs);
+            return;
+        }
+        if (startCancellationToken.IsCancellationRequested)
+        {
+            transcriptionSession.Cancel(); // the release landed while the open was completing
+            return;
+        }
+
+        try
+        {
+            microphoneCapturePipeline!.Value.StartCapture();
+        }
+        catch (Exception microphoneException)
+        {
+            ClickyLog.Write($"dictation: microphone failed to start: {microphoneException.Message}");
+            transcriptionSession.Cancel();
+            Dispatch(new CompanionSessionEvent.DictationCancelled(), ElapsedTMs);
+            return;
+        }
+        activeTranscriptionSession = transcriptionSession;
+        Dispatch(new CompanionSessionEvent.RecordingStarted(), ElapsedTMs);
+
+        TranscriptFinalizeEffect dictationOutcome = await transcriptionSession.DictationOutcome;
+        // An error while the key is still held ends the dictation too, so audio stops here as well.
+        microphoneCapturePipeline.Value.StopCapture();
+        activeTranscriptionSession = null;
+        switch (dictationOutcome)
+        {
+            case TranscriptFinalizeEffect.SubmitTranscript submitTranscript:
+                Dispatch(new CompanionSessionEvent.TranscriptFinal(submitTranscript.TranscriptText), ElapsedTMs);
+                break;
+            case TranscriptFinalizeEffect.CancelDictation cancelDictation:
+                ClickyLog.Write($"dictation: cancelled by a transcription error: {cancelDictation.ErrorMessage}");
+                Dispatch(new CompanionSessionEvent.DictationCancelled(), ElapsedTMs);
+                break;
+            default:
+                // DiscardEmptyTranscript: nothing was said, and the reducer submits nothing (BuddyDictationManager.swift:603).
+                Dispatch(new CompanionSessionEvent.TranscriptFinal(""), ElapsedTMs);
+                break;
+        }
+    }
+
+    /// <summary>Key-up (BuddyDictationManager.swift:476-512): audio stops and flushes before ForceEndpoint is queued.</summary>
+    private void StopDictationAudio()
+    {
+        if (activeTranscriptionSession is null)
+        {
+            dictationStartCancellation?.Cancel();
+            return;
+        }
+        microphoneCapturePipeline!.Value.StopCapture();
+        activeTranscriptionSession.RequestFinalTranscript();
     }
 
     /// <summary>

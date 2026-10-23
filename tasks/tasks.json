@@ -989,9 +989,9 @@
         "Given the 0.4 s fade, when the overlay hides, then PointingSequenceTests.FadeIs400ms asserts the opacity animation duration."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/PointingSequenceTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-23 part 2 (E3-E7). Rendering: Path + DropShadowEffect, pre-rendered spinner arc under RotateTransform, RMS waveform on CompositionTarget.Rendering. QA-matrix: >= 30 fps recording on the mixed-DPI rig showing fly-out, 3 s hold and return, plus a re-check of the WS-01 CPU budget during flight.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/36",
+      "dev_notes": "PointingSequence over FlightPath: fly->bubble->3s hold->return->clear; >100pt DPI-scaled move cancels return (150% pinned); idle-before-target order + element_pointed label; 0.4s fade. PM note: agent finished earlier but PR shepherding was missed in the wave-7 shuffle; rebased on current head (237+93+1skip) and merged as #36.",
       "qa_result": null
     },
     {

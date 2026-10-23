@@ -655,9 +655,11 @@ Lands: `3c` = tracer bullet, `6` = development. "03-plan §x" is a placeholder u
 | CLA-06 | G1 | 4, 6 | 03-plan §x | 6 | code-derived | [ ] |
 | CLA-07 | — | 6 | 03-plan §x | 6 | code-derived | [ ] |
 | CLA-08 | A9, B7 | — | 03-plan §x | 6 | code-derived | [ ] |
-| PNT-01 | G6 | 2 | 03-plan §x | 3c | code-derived | [ ] |
+| PNT-01 | G6 | 2 | 03-plan §x | 3c | code-derived | [x] |
 | PNT-02 | D6 | 3 | 03-plan §x | 3c | code-derived | [ ] |
 | PNT-03 | D6 | 3 | 03-plan §x | 3c | code-derived | [ ] |
+2026-10-23 Mac vector run (ssh hammer, `leanring-buddyTests/GoldenVectorParityTests`, TEST SUCCEEDED): `point-tag.json` — all 15 cases against the Swift parser (PNT-01 fully covered: its entire scope is the parser, so it is ticked); `push-to-talk.json` — the `controlOption` neutral cases against the Swift detector (PTT-04/PTT-05 partially covered: their remaining options are Windows-parameterized, and every interactive scenario still awaits the phase-8 session). The Mac project's unit tests had never run before this session (broken TEST_HOST, wrong module import, no shared scheme) — all fixed in PR #46, and the macos-parity CI job now runs them on every push.
+
 | PNT-04 | D6, E1, E6 | 3 | 03-plan §x | 3c | adr-derived | [ ] |
 | PNT-05 | E1, D6 | — | 03-plan §x | 3c | code-derived | [ ] |
 | PNT-06 | E3, E6 | 6, 9 | 03-plan §x | 3c (jump) / 6 (flight) | code-derived | [ ] |

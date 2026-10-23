@@ -47,6 +47,7 @@ internal sealed partial class PanelViewModel : ObservableObject
     private readonly Action<string> onSelectedClaudeModelChanged;
     private readonly Action<PushToTalkShortcutOption> onPushToTalkShortcutChanged;
     private readonly Action quitApplication;
+    private readonly OnboardingFlow onboardingFlow;
     private CompanionSettings currentUserSettings;
 
     [ObservableProperty]
@@ -94,13 +95,15 @@ internal sealed partial class PanelViewModel : ObservableObject
     /// <param name="onSelectedClaudeModelChanged">Applies a newly chosen model to the next request (CompanionManager.swift:116).</param>
     /// <param name="onPushToTalkShortcutChanged">Hot-swaps the hook's shortcut (GlobalPushToTalkShortcutMonitor.ChangeShortcut, T-007).</param>
     /// <param name="quitApplication">PNL-05's ordered stop path.</param>
+    /// <param name="onboardingFlow">Submit, Start and Watch Onboarding Again (ONB-01, ONB-05).</param>
     public PanelViewModel(
         ClickyUserSettingsStore userSettingsStore,
         CompanionSettings currentUserSettings,
         Action<string> launchUri,
         Action<string> onSelectedClaudeModelChanged,
         Action<PushToTalkShortcutOption> onPushToTalkShortcutChanged,
-        Action quitApplication)
+        Action quitApplication,
+        OnboardingFlow onboardingFlow)
     {
         this.userSettingsStore = userSettingsStore;
         this.currentUserSettings = currentUserSettings;
@@ -108,6 +111,7 @@ internal sealed partial class PanelViewModel : ObservableObject
         this.onSelectedClaudeModelChanged = onSelectedClaudeModelChanged;
         this.onPushToTalkShortcutChanged = onPushToTalkShortcutChanged;
         this.quitApplication = quitApplication;
+        this.onboardingFlow = onboardingFlow;
         selectedClaudeModel = currentUserSettings.SelectedClaudeModel;
         // Accessibility, Screen Recording and Screen Content are dropped on Windows (audit C4, D3, D4; ADR).
         PermissionRows = [new PanelPermissionRow("Microphone", new RelayCommand(() => launchUri(MicrophonePrivacySettingsUri)))];
@@ -199,19 +203,32 @@ internal sealed partial class PanelViewModel : ObservableObject
     [RelayCommand]
     private void Quit() => quitApplication();
 
-    // shortcut: Submit, Start and Watch Onboarding Again only log until T-039 lands the onboarding flow (FormSpark POST,
-    // identify, hasSubmittedEmail/hasCompletedOnboarding writes, onboarding replay); wire them there.
+    /// <summary>CompanionManager.swift:153-173: hasSubmittedEmail is written only once FormSpark accepted the email.</summary>
     [RelayCommand(CanExecute = nameof(CanSubmitEmail))]
-    private void SubmitEmail() => ClickyLog.Write("panel: email submit clicked (onboarding not wired yet)");
+    private async Task SubmitEmailAsync()
+    {
+        if (await onboardingFlow.SubmitEmailAsync(EmailInput)
+            && TrySaveUserSettings(currentUserSettings with { HasSubmittedEmail = true }, "hasSubmittedEmail"))
+        {
+            // The email step only shows with the microphone granted and onboarding not done, so Start is next.
+            IsEmailStepVisible = false;
+            IsStartStepVisible = true;
+        }
+    }
 
     // ONB-01: Submit is enabled only for a non-blank trimmed value.
     private bool CanSubmitEmail() => !string.IsNullOrWhiteSpace(EmailInput);
 
+    /// <summary>CompanionManager.swift:201-218. A failed save still runs onboarding; the Start step then returns next launch.</summary>
     [RelayCommand]
-    private void StartOnboarding() => ClickyLog.Write("panel: start clicked (onboarding not wired yet)");
+    private void StartOnboarding()
+    {
+        TrySaveUserSettings(currentUserSettings with { HasCompletedOnboarding = true }, "hasCompletedOnboarding");
+        onboardingFlow.Start();
+    }
 
     [RelayCommand]
-    private void WatchOnboardingAgain() => ClickyLog.Write("panel: watch onboarding again clicked (onboarding not wired yet)");
+    private void WatchOnboardingAgain() => onboardingFlow.Replay();
 
     private bool TrySaveUserSettings(CompanionSettings updatedUserSettings, string changedSettingName)
     {

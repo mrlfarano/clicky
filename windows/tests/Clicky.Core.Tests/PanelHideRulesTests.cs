@@ -22,6 +22,7 @@ public sealed class PanelHideRulesTests
     [InlineData(PanelHideReason.Deactivated, "panel hidden reason=deactivated")]
     [InlineData(PanelHideReason.PushToTalk, "panel hidden reason=ptt")]
     [InlineData(PanelHideReason.Close, "panel hidden reason=close")]
+    [InlineData(PanelHideReason.Onboarding, "panel hidden reason=onboarding")]
     public void OpenPanelHidesWithReasonLogLine(PanelHideReason hideReason, string expectedLogLine)
     {
         CompanionPanelVisibility panelVisibility = CreatePanelVisibility();

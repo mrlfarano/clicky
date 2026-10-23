@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Interop;
 using Clicky.Core;
 using Velopack;
+using Windows.Win32;
 
 namespace Clicky.Windows;
 
@@ -343,7 +344,9 @@ internal static class Program
         // exercises startup and the ordered shutdown, and a panel opening on CI runners would add nothing but noise.
         if (options.DebugQuitAfter is null)
         {
-            StartTrayIconAndPanel(application, effectiveUserSettings, userSettingsStore, claudeClient, overlayWindow, companionCoordinator, shortcutMonitor, timeProvider);
+            StartTrayIconAndPanel(
+                application, effectiveUserSettings, userSettingsStore, claudeClient, overlayWindow, companionCoordinator, shortcutMonitor,
+                analyticsSink, workerHttpClient, timeProvider);
         }
 
         // The panel's "Quit Clicky" (PNL-05) calls ShutDownInOrder too.
@@ -389,8 +392,29 @@ internal static class Program
         CursorOverlayWindow overlayWindow,
         CompanionCoordinator companionCoordinator,
         GlobalPushToTalkShortcutMonitor shortcutMonitor,
+        IAnalyticsSink analyticsSink,
+        HttpClient sharedHttpClient,
         TimeProvider timeProvider)
     {
+        // ONB-01, ONB-05: the music gets its own output, since the TTS output plays one clip at a time.
+        var onboardingFlow = new OnboardingFlow(
+            sharedHttpClient,
+            analyticsSink,
+            new OnboardingMusicPlayer(new WasapiAudioOutput(), timeProvider),
+            showOnboardingBubbleText: bubbleText =>
+            {
+                if (bubbleText.Length > 0 && !overlayWindow.IsVisible)
+                {
+                    PInvoke.GetCursorPos(out System.Drawing.Point cursorPositionPx);
+                    overlayWindow.ShowWithHotspotAt(cursorPositionPx);
+                }
+                overlayWindow.SetBubbleText(bubbleText);
+            },
+            timeProvider);
+        companionCoordinator.IsOnboardingShowing = () => onboardingFlow.IsOnboardingShowing;
+        // The reducer's DismissPanel fires on every accepted press, which is also what hides the closing prompt (:500-509).
+        companionCoordinator.PanelDismissRequested += onboardingFlow.DismissClosingPrompt;
+
         // The panel's mic-denied rules read the live permission. The first probe runs before the polling loop's
         // first wait, so the launch decision below already sees it.
         var microphonePermissionDetector = new MicrophonePermissionDetector(WindowsMicrophonePermissionProbe.ProbeMicrophonePermission, timeProvider);
@@ -404,7 +428,8 @@ internal static class Program
             launchUri: uri => Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose(),
             onSelectedClaudeModelChanged: selectedClaudeModel => claudeClient.Model = selectedClaudeModel,
             onPushToTalkShortcutChanged: shortcutMonitor.ChangeShortcut,
-            quitApplication: () => ShutDownInOrder(application, shortcutMonitor, companionCoordinator));
+            quitApplication: () => ShutDownInOrder(application, shortcutMonitor, companionCoordinator),
+            onboardingFlow);
         var panelWindow = new CompanionPanelWindow(panelViewModel);
         panelWindow.CreateHiddenWindowHandle();
         var trayIcon = new ClickyTrayIcon();
@@ -440,6 +465,7 @@ internal static class Program
         panelWindow.Deactivated += (_, _) => panelVisibility.HidePanel(PanelHideReason.Deactivated);
         panelWindow.CloseButtonClicked += () => panelVisibility.HidePanel(PanelHideReason.Close);
         companionCoordinator.PanelDismissRequested += () => panelVisibility.HidePanel(PanelHideReason.PushToTalk);
+        onboardingFlow.PanelDismissRequested += () => panelVisibility.HidePanel(PanelHideReason.Onboarding);
         _ = panelVisibility.ShowPanelOnLaunchIfSetupIncompleteAsync(effectiveUserSettings.HasCompletedOnboarding, CancellationToken.None);
     }
 

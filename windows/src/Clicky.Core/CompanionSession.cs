@@ -109,7 +109,10 @@ public abstract record CompanionSessionEffect
 {
     public sealed record ShowOverlay : CompanionSessionEffect;
 
-    /// <summary>Fade the overlay out and hide it (CompanionManager.swift:753, OverlayWindow.swift:819).</summary>
+    /// <summary>
+    /// Fade the overlay out over <see cref="PointingSequence.OverlayHideFadeOutDuration"/> and hide it
+    /// (CompanionManager.swift:753, OverlayWindow.swift:819).
+    /// </summary>
     public sealed record HideOverlay : CompanionSessionEffect;
 
     /// <summary>

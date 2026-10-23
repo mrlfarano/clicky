@@ -54,13 +54,11 @@ jobs:
     name: macos-parity
     runs-on: macos-latest
     timeout-minutes: 20
-    # Current scope: platform-neutral checks only.
-    # TODO(phase that touches the Xcode project): add `xcodebuild test` here to
-    # run the XCTest golden-vector file (point-tag, push-to-talk; ADR tracer item 7).
-    # Running xcodebuild here is fine even though AGENTS.md forbids it. That rule
-    # protects TCC grants (screen recording, accessibility) on a developer's own Mac.
-    # A CI runner is an ephemeral VM with no grants to lose, and the XCTest
-    # vectors never call a TCC-gated API.
+    # Golden-vector schema checks, the Swift golden-vector XCTests (T-008), the worker build,
+    # and parity-spec link lint. Running xcodebuild here is fine even though AGENTS.md forbids
+    # it on dev Macs: that rule protects TCC grants (screen recording, accessibility) on a
+    # developer's own machine. A CI runner is an ephemeral VM with no grants to lose, and the
+    # XCTests never call a TCC-gated API.
     steps:
       - uses: actions/checkout@v5
 
@@ -69,6 +67,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: worker/package-lock.json
+
+      - name: Swift golden-vector XCTests (T-008/T-009)
+        # Runs shared/golden/point-tag.json and push-to-talk.json against the Swift
+        # implementation (the parity oracle), plus the prompt bundle-vs-file check.
+        # Ad-hoc signing: the runner has no certificates; the tests never leave the VM.
+        run: |
+          set -o pipefail
+          xcodebuild test             -project leanring-buddy.xcodeproj             -scheme leanring-buddy             -destination 'platform=macOS'             -only-testing:leanring-buddyTests             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY='' CODE_SIGN_ENTITLEMENTS=''
 
       - name: Validate shared/golden vectors
         # Shape is defined in docs/02-parity-spec.md, "Golden vector file format".

@@ -109,6 +109,7 @@
 				28F22CBB2F56440300A0FC59 /* Sources */,
 				28F22CBC2F56440300A0FC59 /* Frameworks */,
 				28F22CBD2F56440300A0FC59 /* Resources */,
+				7C1C15A30000000000000001 /* Copy shared prompts into app bundle */,
 			);
 			buildRules = (
 			);
@@ -173,6 +174,28 @@
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
+/* Begin PBXShellScriptBuildPhase section */
+		7C1C15A30000000000000001 /* Copy shared prompts into app bundle */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/shared/prompts/companion-voice-response.txt",
+				"$(SRCROOT)/shared/prompts/onboarding-demo.txt",
+			);
+			name = "Copy shared prompts into app bundle";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/companion-voice-response.txt",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/onboarding-demo.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources\" && cp \"${SRCROOT}/shared/prompts/\"*.txt \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 
 /* Begin PBXProject section */
 		28F22CB72F56440300A0FC59 /* Project object */ = {
@@ -495,7 +518,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Clicky.app/Contents/MacOS/Clicky";
 			};
 			name = Debug;
 		};
@@ -516,7 +539,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Clicky.app/Contents/MacOS/Clicky";
 			};
 			name = Release;
 		};

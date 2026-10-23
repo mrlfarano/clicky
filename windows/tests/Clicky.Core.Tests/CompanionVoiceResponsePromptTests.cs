@@ -4,50 +4,44 @@ using Xunit;
 namespace Clicky.Core.Tests;
 
 /// <summary>
-/// shared/prompts/companion-voice-response.txt and shared/prompts/onboarding-demo.txt are verbatim copies
-/// of the Swift literals at CompanionManager.swift:544-577 and :950-962 until the Mac app loads the files
-/// itself (seam 10, T-009). This catches drift on either side.
+/// shared/prompts/companion-voice-response.txt and shared/prompts/onboarding-demo.txt were verbatim
+/// copies of Swift string literals until T-009 landed: the Mac app now loads the files themselves as
+/// bundle resources (the byte-for-byte bundle-vs-file check runs on the Mac side, in
+/// leanring-buddyTests/GoldenVectorParityTests.swift). This side keeps the extraction honest: the
+/// files must exist with the exact content shape the request pipeline depends on, and the Swift
+/// source must not grow the literals back (which would reintroduce a second source of truth).
 /// </summary>
 public sealed class CompanionVoiceResponsePromptTests
 {
-    [Fact]
-    public void SharedPromptFileMatchesSwiftLiteral()
+    [Theory]
+    [InlineData("companion-voice-response.txt")]
+    [InlineData("onboarding-demo.txt")]
+    public void SharedPromptFileIsNonEmptyUtf8WithoutBom(string promptFileName)
     {
-        string sharedPromptText = File.ReadAllText(
-            Path.Combine(GoldenVectors.RepositoryRootDirectory, "shared", "prompts", "companion-voice-response.txt"));
+        byte[] promptBytes = File.ReadAllBytes(
+            Path.Combine(GoldenVectors.RepositoryRootDirectory, "shared", "prompts", promptFileName));
 
-        Assert.Equal(ReadSwiftPromptLiteral("companionVoiceResponseSystemPrompt"), sharedPromptText);
+        // Bytes reach the Claude request body unchanged (ONB-02): a BOM would be spoken content.
+        Assert.NotEmpty(promptBytes);
+        Assert.NotEqual((byte)0xEF, promptBytes[0]);
+        Assert.Contains((byte)'\n', promptBytes);
+        Assert.DoesNotContain("\r\n"u8.ToArray(), promptBytes);
+        // Swift multiline literals carry no trailing newline, and the byte-equality era (pre-T-009)
+        // established the files match that exactly — keep it that way.
+        Assert.NotEqual((byte)'\n', promptBytes[^1]);
     }
 
-    [Fact]
-    public void OnboardingDemoPromptFileByteEqualsSwiftLiteral()
+    [Theory]
+    [InlineData("companionVoiceResponseSystemPrompt")]
+    [InlineData("onboardingDemoSystemPrompt")]
+    public void SwiftSourceCarriesNoPromptLiteral(string literalName)
     {
-        // Bytes, not text: a BOM or CRLF in the shared file would reach the request body unchanged (ONB-02).
-        byte[] sharedPromptBytes = File.ReadAllBytes(
-            Path.Combine(GoldenVectors.RepositoryRootDirectory, "shared", "prompts", "onboarding-demo.txt"));
-
-        Assert.Equal(Encoding.UTF8.GetBytes(ReadSwiftPromptLiteral("onboardingDemoSystemPrompt")), sharedPromptBytes);
-    }
-
-    private static string ReadSwiftPromptLiteral(string literalName)
-    {
-        string[] swiftSourceLines = File.ReadAllLines(
+        string swiftSource = File.ReadAllText(
             Path.Combine(GoldenVectors.RepositoryRootDirectory, "leanring-buddy", "CompanionManager.swift"));
-        int openingLineIndex = Array.FindIndex(
-            swiftSourceLines,
-            sourceLine => sourceLine.Contains($"{literalName} = \"\"\"", StringComparison.Ordinal));
-        Assert.True(openingLineIndex >= 0, $"Swift prompt literal {literalName} not found");
-        int closingLineIndex = Array.FindIndex(
-            swiftSourceLines,
-            openingLineIndex + 1,
-            sourceLine => sourceLine.Trim() == "\"\"\"");
 
-        // A Swift multi-line string drops the closing delimiter's indentation from every line.
-        string closingDelimiterIndentation = swiftSourceLines[closingLineIndex][..swiftSourceLines[closingLineIndex].IndexOf('"')];
-        IEnumerable<string> literalLines = swiftSourceLines[(openingLineIndex + 1)..closingLineIndex]
-            .Select(literalLine => literalLine.StartsWith(closingDelimiterIndentation, StringComparison.Ordinal)
-                ? literalLine[closingDelimiterIndentation.Length..]
-                : literalLine);
-        return string.Join("\n", literalLines);
+        // T-009 moved the literals to shared/prompts; the Swift side loads bundle resources instead.
+        // A literal coming back means someone reintroduced a prompt copy that can drift from the file.
+        Assert.DoesNotContain($"{literalName} = \"\"\"", swiftSource, StringComparison.Ordinal);
+        Assert.Contains($"loadRequiredPromptBundleResource", swiftSource, StringComparison.Ordinal);
     }
 }

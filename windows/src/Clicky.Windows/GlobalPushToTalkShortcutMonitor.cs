@@ -280,6 +280,7 @@ internal sealed class GlobalPushToTalkShortcutMonitor
             {
                 hasStalledHookCallback = true;
                 StallLongerThanLowLevelHooksTimeout();
+                SimulateWindowsRemovingTheStalledHook();
             }
         }
         // Listen-only: every key always continues down the hook chain, so typing is never swallowed.
@@ -410,12 +411,31 @@ internal sealed class GlobalPushToTalkShortcutMonitor
         }
     }
 
-    /// <summary>For ADR 001 acceptance 6: block one callback for twice LowLevelHooksTimeout so Windows drops the hook.</summary>
+    /// <summary>
+    /// For ADR 001 acceptance 6: block one callback for twice LowLevelHooksTimeout so Windows drops the
+    /// hook. Modern Windows 11 no longer reliably removes a stalled low-level hook (observed live: a 2 s
+    /// callback survived with LowLevelHooksTimeout pinned to 250 ms), so the stall completes the
+    /// simulation the OS used to perform: the liveness tick is aged far past the comparison window and
+    /// the hook handle is dropped. The next keystroke then reaches Raw Input but not the hook, which is
+    /// exactly the divergence the real watchdog exists to detect and reinstall from.
+    /// </summary>
     private static void StallLongerThanLowLevelHooksTimeout()
     {
         int stallMilliseconds = 2 * ReadLowLevelHooksTimeoutMilliseconds();
         ClickyLog.Write($"hook stalled (debug) for {stallMilliseconds} ms");
         Thread.Sleep(stallMilliseconds);
+    }
+
+    /// <summary>
+    /// The death half of the debug stall: what Windows dropping the hook would leave behind. The handle
+    /// disposal is deferred to the hook thread's dispatcher — disposing inside the callback that Windows
+    /// is still dispatching crashes the process, while this callback must return through CallNextHookEx
+    /// with its (still valid) handle first.
+    /// </summary>
+    private void SimulateWindowsRemovingTheStalledHook()
+    {
+        lastHookCallbackTickMilliseconds -= 10 * HookLivenessWindowMilliseconds;
+        hookThreadDispatcher?.InvokeAsync(() => keyboardHookInstaller.CurrentKeyboardHookHandle?.Dispose());
     }
 
     private static int ReadLowLevelHooksTimeoutMilliseconds()

@@ -1,5 +1,5 @@
 import XCTest
-@testable import leanring_buddy
+@testable import Clicky
 
 /// T-008: runs the shared golden vectors (`shared/golden/*.json`) against the Swift implementation,
 /// proving the Windows port's C# core reproduces the same behavior as this original code. These

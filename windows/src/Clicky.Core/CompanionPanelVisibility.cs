@@ -11,6 +11,9 @@ public enum PanelHideReason
 
     /// <summary>The panel's × button (CompanionPanelView.swift:106-107), or a tray click while the panel is open.</summary>
     Close,
+
+    /// <summary>Start or Watch Onboarding Again (CompanionManager.swift:203, 224).</summary>
+    Onboarding,
 }
 
 /// <summary>
@@ -49,7 +52,7 @@ public sealed class CompanionPanelVisibility(
     }
 
     /// <summary>
-    /// PNL-02: hides the open panel and logs <c>panel hidden reason=deactivated|ptt|close</c>. The one exception
+    /// PNL-02: hides the open panel and logs <c>panel hidden reason=deactivated|ptt|close|onboarding</c>. The one exception
     /// is deactivation while the mic is denied. The Mac keeps the panel open while permissions are missing
     /// and the app is inactive (MenuBarPanelManager.swift:226-230). On Windows the mic is the only permission,
     /// and the panel must stay so the user can follow its settings link.
@@ -108,6 +111,7 @@ public sealed class CompanionPanelVisibility(
         PanelHideReason.Deactivated => "deactivated",
         PanelHideReason.PushToTalk => "ptt",
         PanelHideReason.Close => "close",
+        PanelHideReason.Onboarding => "onboarding",
         _ => throw new ArgumentOutOfRangeException(nameof(hideReason), hideReason, null),
     };
 }

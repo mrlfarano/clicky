@@ -81,7 +81,8 @@ internal static class RenderedCompanionPanel
             // The store is never written: nothing here selects a model or a shortcut.
             var panelViewModel = new PanelViewModel(
                 new ClickyUserSettingsStore(Path.GetTempPath()), userSettings, launchUri: _ => { },
-                onSelectedClaudeModelChanged: _ => { }, onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { });
+                onSelectedClaudeModelChanged: _ => { }, onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { },
+                OnboardingFlowTests.CreateIdleOnboardingFlow());
             panelViewModel.Refresh(hasMicrophonePermission, isOverlayVisible: false, CompanionVoiceState.Idle);
             Run(panelViewModel, inspectRenderedPanelView);
         }

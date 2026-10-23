@@ -93,7 +93,7 @@ public sealed class PanelViewModelTests
             CompanionSettings onboardedSettings = CompanionSettings.Defaults with { HasCompletedOnboarding = true };
             var panelViewModel = new PanelViewModel(
                 new ClickyUserSettingsStore(dataDirectoryPath), onboardedSettings, launchUri: _ => { }, selectedModelsApplied.Add,
-                onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { });
+                onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { }, OnboardingFlowTests.CreateIdleOnboardingFlow());
             panelViewModel.Refresh(hasMicrophonePermission: true, isOverlayVisible: false, CompanionVoiceState.Idle);
             Assert.True(panelViewModel.IsSetupComplete);
             Assert.True(panelViewModel.IsSonnetSelected);
@@ -127,7 +127,7 @@ public sealed class PanelViewModelTests
             CompanionSettings onboardedSettings = CompanionSettings.Defaults with { HasCompletedOnboarding = true };
             var panelViewModel = new PanelViewModel(
                 new ClickyUserSettingsStore(dataDirectoryPath), onboardedSettings, launchUri: _ => { }, onSelectedClaudeModelChanged: _ => { },
-                shortcutMonitor.ChangeShortcut, quitApplication: () => { });
+                shortcutMonitor.ChangeShortcut, quitApplication: () => { }, OnboardingFlowTests.CreateIdleOnboardingFlow());
             panelViewModel.Refresh(hasMicrophonePermission: true, isOverlayVisible: false, CompanionVoiceState.Idle);
             Assert.Equal(CompanionPanelStatus.PushToTalkHintCopy, panelViewModel.PushToTalkHintText);
             Assert.Equal([PushToTalkShortcutOption.ControlOption], SelectedShortcutOptions(panelViewModel));
@@ -202,7 +202,7 @@ public sealed class PanelViewModelTests
     // Only ModelPickerPersists and ShortcutPickerWritesSettingAndHotSwaps write settings, each to its own temp directory.
     private static PanelViewModel CreatePanelViewModel(CompanionSettings userSettings, string settingsDirectoryPath, List<string> launchedUris) =>
         new(new ClickyUserSettingsStore(settingsDirectoryPath), userSettings, launchedUris.Add, onSelectedClaudeModelChanged: _ => { },
-            onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { });
+            onPushToTalkShortcutChanged: _ => { }, quitApplication: () => { }, OnboardingFlowTests.CreateIdleOnboardingFlow());
 
     private static IEnumerable<JsonObject> LoadPanelStatusCases() =>
         JsonNode.Parse(File.ReadAllText(Path.Combine(ClickyReplayProcess.RepositoryRootDirectory, "shared", "golden", "session-reducer.json")))!

@@ -170,7 +170,7 @@ public sealed partial class CoordinatorReplayTests
     }
 
     /// <summary>A coordinator wired like Program.cs, minus the network: a press never reaches the runner's HTTP client.</summary>
-    private static CompanionCoordinator CreateInProcessCoordinator(IAnalyticsSink analyticsSink)
+    internal static CompanionCoordinator CreateInProcessCoordinator(IAnalyticsSink analyticsSink)
     {
         var overlayWindow = new CursorOverlayWindow();
         var textToSpeechSink = new InMemoryTextToSpeechSink();

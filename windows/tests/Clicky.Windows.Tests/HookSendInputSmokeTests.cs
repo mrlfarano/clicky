@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using Microsoft.Win32;
 using Xunit;
 
 namespace Clicky.Windows.Tests;
@@ -45,6 +46,7 @@ public sealed class HookSendInputSmokeTests
             Assert.Skip("no interactive input desktop is available, so SendInput cannot fire shortcut presses");
         }
 
+        using LowLevelHooksTimeoutPin hooksTimeoutPin = LowLevelHooksTimeoutPin.PinForDeterministicHookDrop();
         string liveCopyDirectoryPath = StageLiveClickyCopyWithLoopbackWorker();
         string dataDirectoryPath = ClickyProcessLauncher.CreateTempDataDirectory();
         try
@@ -229,7 +231,30 @@ public sealed class HookSendInputSmokeTests
             return "";
         }
         return string.Join(Environment.NewLine,
-            Directory.GetFiles(logsDirectoryPath, "clicky-*.log").Select(File.ReadAllText));
+            Directory.GetFiles(logsDirectoryPath, "clicky-*.log").Select(ReadFileWhileAppenderWrites));
+    }
+
+    /// <summary>
+    /// The live app appends to the same file this reads, and a plain File.ReadAllText races the appender's
+    /// open handle (observed live: sharing violation on the first read). Read with full sharing and a short
+    /// retry so a mid-rotation or mid-append collision is a delay, not a failure.
+    /// </summary>
+    private static string ReadFileWhileAppenderWrites(string filePath)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete, bufferSize: 64 * 1024, FileOptions.SequentialScan);
+                using var streamReader = new StreamReader(fileStream);
+                return streamReader.ReadToEnd();
+            }
+            catch (IOException) when (attempt < 10)
+            {
+                Thread.Sleep(100);
+            }
+        }
     }
 
     private static void CopyDirectory(string sourceDirectoryPath, string destinationDirectoryPath)
@@ -292,5 +317,44 @@ public sealed class HookSendInputSmokeTests
     {
         public uint InputType;
         public INPUT_UNION Union;
+    }
+
+    /// <summary>
+    /// Windows only removes a stalled low-level hook once its callback exceeds LowLevelHooksTimeout, whose
+    /// effective default varies by machine and load — on some desktops a 2 s debug stall survives, the hook
+    /// keeps working, the watchdog correctly reinstalled nothing, and the recovery evidence never appears.
+    /// Pinning the timeout (HKCU, session-scoped) to a small value makes the stall deterministically drop
+    /// the hook so the watchdog path is genuinely exercised; the original value (or its absence) is restored
+    /// on dispose. The pin is part of the test, not of the app.
+    /// </summary>
+    private sealed class LowLevelHooksTimeoutPin : IDisposable
+    {
+        private const string RegistryKeyName = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows";
+        private const string RegistryValueName = "LowLevelHooksTimeout";
+        private const int PinnedTimeoutMilliseconds = 250;
+        private readonly object? previousRegistryValue;
+
+        private LowLevelHooksTimeoutPin(object? previousRegistryValue) => this.previousRegistryValue = previousRegistryValue;
+
+        public static LowLevelHooksTimeoutPin PinForDeterministicHookDrop()
+        {
+            using RegistryKey windowsKey = Registry.CurrentUser.CreateSubKey(RegistryKeyName);
+            object? previousValue = windowsKey.GetValue(RegistryValueName);
+            windowsKey.SetValue(RegistryValueName, PinnedTimeoutMilliseconds, RegistryValueKind.DWord);
+            return new LowLevelHooksTimeoutPin(previousValue);
+        }
+
+        public void Dispose()
+        {
+            using RegistryKey windowsKey = Registry.CurrentUser.CreateSubKey(RegistryKeyName);
+            if (previousRegistryValue is null)
+            {
+                windowsKey.DeleteValue(RegistryValueName, throwOnMissingValue: false);
+            }
+            else
+            {
+                windowsKey.SetValue(RegistryValueName, previousRegistryValue);
+            }
+        }
     }
 }

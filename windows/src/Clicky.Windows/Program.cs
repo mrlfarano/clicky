@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -342,7 +343,7 @@ internal static class Program
         // exercises startup and the ordered shutdown, and a panel opening on CI runners would add nothing but noise.
         if (options.DebugQuitAfter is null)
         {
-            StartTrayIconAndPanel(application, effectiveUserSettings, overlayWindow, companionCoordinator, timeProvider);
+            StartTrayIconAndPanel(application, effectiveUserSettings, userSettingsStore, claudeClient, overlayWindow, companionCoordinator, timeProvider);
         }
 
         // shortcut: --debug-quit-after-ms is the only quit trigger until the tray's "Quit Clicky" lands (WS-18);
@@ -384,6 +385,8 @@ internal static class Program
     private static void StartTrayIconAndPanel(
         Application application,
         CompanionSettings effectiveUserSettings,
+        ClickyUserSettingsStore userSettingsStore,
+        ClaudeClient claudeClient,
         CursorOverlayWindow overlayWindow,
         CompanionCoordinator companionCoordinator,
         TimeProvider timeProvider)
@@ -395,22 +398,37 @@ internal static class Program
         MicrophonePermissionState ReadMicrophonePermissionState() =>
             microphonePermissionDetector.CurrentPermissionState ?? MicrophonePermissionState.Denied;
 
-        var panelWindow = new CompanionPanelWindow();
+        var panelViewModel = new PanelViewModel(
+            userSettingsStore,
+            effectiveUserSettings,
+            launchUri: uri => Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose(),
+            onSelectedClaudeModelChanged: selectedClaudeModel => claudeClient.Model = selectedClaudeModel);
+        var panelWindow = new CompanionPanelWindow(panelViewModel);
         panelWindow.CreateHiddenWindowHandle();
         var trayIcon = new ClickyTrayIcon();
         // The Exit subscription removes the icon on every exit path, so no ghost icon is left (PNL-05).
         application.Exit += (_, _) => trayIcon.Dispose();
 
-        var panelVisibility = new CompanionPanelVisibility(
-            showPanelWindow: () =>
+        // Showing again re-measures the content, so the panel resizes when sections appear or disappear.
+        void RefreshAndShowPanel()
+        {
+            panelViewModel.Refresh(
+                ReadMicrophonePermissionState() == MicrophonePermissionState.Granted,
+                overlayWindow.IsVisible,
+                companionCoordinator.VoiceState);
+            panelWindow.ShowAnchoredToTrayIcon(trayIcon);
+        }
+        // PNL-04: a grant (or revoke) seen by the 1.5 s poll updates an open panel.
+        microphonePermissionDetector.PermissionStateFlipped += (_, _) => panelWindow.Dispatcher.InvokeAsync(() =>
+        {
+            if (panelWindow.IsVisible)
             {
-                panelWindow.SetStatus(CompanionPanelStatus.From(
-                    effectiveUserSettings.HasCompletedOnboarding,
-                    ReadMicrophonePermissionState() == MicrophonePermissionState.Granted,
-                    overlayWindow.IsVisible,
-                    companionCoordinator.VoiceState));
-                panelWindow.ShowAnchoredToTrayIcon(trayIcon);
-            },
+                RefreshAndShowPanel();
+            }
+        });
+
+        var panelVisibility = new CompanionPanelVisibility(
+            showPanelWindow: RefreshAndShowPanel,
             hidePanelWindow: panelWindow.Hide,
             readMicrophonePermissionState: ReadMicrophonePermissionState,
             writeLogLine: ClickyLog.Write,

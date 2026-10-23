@@ -15,7 +15,7 @@ namespace Clicky.Windows;
 /// The companion panel's window (audit B3): borderless, topmost, out of the taskbar and Alt+Tab. It activates
 /// when shown, because the panel's email field needs keyboard focus and Windows has no window that is key
 /// without being active. Losing that activation is the Windows form of click-outside dismissal (B5).
-/// shortcut: the content is only the header status and the × button; T-032/T-033 port the full panel view into it.
+/// Its content is <see cref="CompanionPanelView"/>, bound to <see cref="PanelViewModel"/>.
 /// </summary>
 internal sealed class CompanionPanelWindow : Window
 {
@@ -25,10 +25,9 @@ internal sealed class CompanionPanelWindow : Window
     private const int WindowMessageSettingChange = 0x001A; // WM_SETTINGCHANGE
 
     private readonly Border panelContentBorder;
-    private readonly TextBlock statusTextBlock;
     private HWND windowHandle;
 
-    public CompanionPanelWindow()
+    public CompanionPanelWindow(PanelViewModel panelViewModel)
     {
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -38,27 +37,14 @@ internal sealed class CompanionPanelWindow : Window
         ResizeMode = ResizeMode.NoResize;
         Width = PanelWidthDip;
 
-        statusTextBlock = new TextBlock { Foreground = Brushes.White, FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
-        var closeButton = new Button
-        {
-            Content = "×",
-            FontSize = 14,
-            Width = 24,
-            Height = 24,
-            Foreground = Brushes.White,
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-        };
-        System.Windows.Automation.AutomationProperties.SetName(closeButton, "Close panel");
-        closeButton.Click += (_, _) => CloseButtonClicked?.Invoke();
-        DockPanel.SetDock(closeButton, Dock.Right);
-        var headerDockPanel = new DockPanel { Children = { closeButton, statusTextBlock } };
+        var panelView = new CompanionPanelView { DataContext = panelViewModel };
+        panelView.CloseButton.Click += (_, _) => CloseButtonClicked?.Invoke();
         panelContentBorder = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1E)),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(16, 12, 12, 12),
-            Child = headerDockPanel,
+            Child = panelView,
         };
         Content = panelContentBorder;
 
@@ -76,8 +62,6 @@ internal sealed class CompanionPanelWindow : Window
 
     /// <summary>Creates the HWND without showing it, so capture exclusion and the WM_SETTINGCHANGE hook exist from startup.</summary>
     public void CreateHiddenWindowHandle() => new WindowInteropHelper(this).EnsureHandle();
-
-    public void SetStatus(CompanionPanelStatus panelStatus) => statusTextBlock.Text = $"Clicky · {panelStatus.StatusText}";
 
     /// <summary>
     /// Shows and activates the panel where Core's <see cref="PanelAnchor"/> puts it for the tray icon (PNL-01):

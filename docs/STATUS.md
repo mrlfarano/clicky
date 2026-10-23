@@ -5,6 +5,20 @@ PM artifacts: this file (status), `docs/adr/*.md` (decisions), `tasks/tasks.json
 
 Last updated: 2026-10-22 — PM
 
+## Phase 8 — RELEASE GATE AUDIT (2026-10-23)
+
+Playbook §8 requirements vs reality — the gate is NOT green; it is owner-gated:
+
+| Requirement | Status |
+|---|---|
+| All tasks qa_result=pass | **39/44 pass.** 3 environment-gated: T-007 (live SendInput smoke — interactive desktop), T-015 (real Trusted-Signing — owner secrets), T-037 (release-gate on a real win-v* tag — owner tag+secrets). 2 macOS-blocked: T-008/T-009 (no Mac here). |
+| CI green on main | CI green on fork integration branch `feature/windows-build` (run 39892140116, head f386b25a). NOT merged to main — merging is the release motion, owner's call. |
+| Clean-VM install verified | Closest evidence: CI installs the Velopack Setup.exe silently on clean windows-latest runners every run (`installed-replay`, `install-hooks`, `update-n-to-n1` steps all success) incl. N->N+1 self-update with user-data survival. A true clean-VM interactive session remains open. |
+| macOS suite green vs shared core | IMPOSSIBLE here (no macOS). The shared golden vectors run on Windows/Linux; Swift-side execution (T-008/T-009) + the parity sign-off need a Mac. |
+| Zero open risks from audit §1d | Risk 1 (overlay) retired by T-004/T-042 + QA hand-verified pointing math. Risk 2 (hook) retired by T-007 fakes + watchdog; live smoke open. Risk 3 (parity) mitigated by 17 golden-vector suites; Mac sign-off open. Standing items: Worker client auth (deferred), PostHog transcript content (deferred), onboarding video DROPPED (owner decision — present at Mac sign-off), live STT/TTS/WASAPI paths compile+fake-tested but never ran against real services. |
+
+**To ship, the owner must:** (1) provide signing secrets (TRUSTED_SIGNING_* or OV .pfx), (2) push a `win-v<semver>-beta.N` tag to trigger pack->sign->release-gate->upload, (3) run the interactive QA matrix on a VM (AltGr layouts, mixed DPI 4-px pointing, tray/click-through, CLICKY_RUN_INTERACTIVE_SMOKE=1), (4) run T-008/T-009 + the parity sign-off on a Mac, (5) decide Worker auth + PostHog content before public distribution.
+
 ## Current phase
 
 **Phase 6 — Development. Waves 1–3 complete: 16/44 tasks done.** Wave 3: T-015 signing [#15](https://github.com/mrlfarano/clicky/pull/15), T-010 session reducer [#16](https://github.com/mrlfarano/clicky/pull/16), T-005 virtual-desktop spike + PNT-07 spec gap closed [#17](https://github.com/mrlfarano/clicky/pull/17). Wave 4 in flight: T-011 (reducer: transient-hide/persistent/panel-status), T-035 (update service). Blocked on macOS: T-008, T-009. **New merge-craft rule:** strict required contexts invalidate sibling PRs after every merge — pre-merge the latest integration branch into each PR branch before pushing (poller: `.scratch/windows-port/poll_pr.py`).

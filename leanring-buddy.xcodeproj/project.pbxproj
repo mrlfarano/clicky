@@ -89,6 +89,8 @@
 				28F22CC12F56440300A0FC59 /* leanring-buddy */,
 				28F22CCF2F56440300A0FC59 /* leanring-buddyTests */,
 				28F22CD92F56440300A0FC59 /* leanring-buddyUITests */,
+				7C1C15A10000000000000001 /* companion-voice-response.txt */,
+				7C1C15A10000000000000002 /* onboarding-demo.txt */,
 				28F22CC02F56440300A0FC59 /* Products */,
 			);
 			sourceTree = "<group>";

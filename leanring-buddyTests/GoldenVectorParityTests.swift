@@ -51,7 +51,15 @@ final class GoldenVectorParityTests: XCTestCase {
             } else {
                 XCTAssertNil(result.coordinate, "case \(caseID): expected no coordinate")
             }
-            XCTAssertEqual(result.elementLabel, expected["label"] as? String?, "case \(caseID): label")
+            // The vector writes JSON null for an absent label; JSONSerialization surfaces it as NSNull,
+            // which `as? String` leaves as nil either way — normalize all three absent shapes to nil.
+            let expectedLabel: String?
+            if expected["label"] is NSNull || expected["label"] == nil {
+                expectedLabel = nil
+            } else {
+                expectedLabel = expected["label"] as? String
+            }
+            XCTAssertEqual(result.elementLabel, expectedLabel, "case \(caseID): label")
             let expectedScreen = expected["screen"] as? Int
             XCTAssertEqual(result.screenNumber, expectedScreen, "case \(caseID): screen")
         }

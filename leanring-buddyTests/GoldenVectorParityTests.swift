@@ -88,7 +88,7 @@ final class GoldenVectorParityTests: XCTestCase {
                 let transition = BuddyPushToTalkShortcut.shortcutTransition(
                     for: try Self.cgEventType(for: try XCTUnwrap(event["type"] as? String)),
                     keyCode: (event["key"] as? String) == "space" ? BuddyPushToTalkShortcut.pushToTalkKeyCode : 0,
-                    modifierFlagsRawValue: try Self.modifierFlags(for: event).rawValue,
+                    modifierFlagsRawValue: UInt64(try Self.modifierFlags(for: event).rawValue),
                     wasShortcutPreviouslyPressed: wasShortcutPreviouslyPressed)
 
                 XCTAssertEqual(Self.transitionName(transition), expectedTransitionNames[eventIndex],

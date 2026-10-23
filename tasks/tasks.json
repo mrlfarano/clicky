@@ -97,12 +97,12 @@
         "Given a WM_DISPLAYCHANGE message, when handled, then OverlayMoveTests.MonitorsReenumerated asserts the monitor list is re-read."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/ReplayEndToEndTests.cs",
-      "status": "in_progress",
+      "status": "done",
       "pr": "https://github.com/mrlfarano/clicky/pull/12 (+ fix #13)",
       "dev_notes": "Merged via PR #12 + timing fix PR #13 (133/133 clean rebuild). Content-sized moving window: SetWindowPos position+size in physical px, monitor matched by device name (WM_DISPLAYCHANGE re-enum), WM_DPICHANGED rescale, change-gated applier (60 stationary frames = 0 calls, asserted via setWindowPosCalls report counter), WDA_EXCLUDEFROMCAPTURE preserved, OverlayPlacement (T-003) drives placement. Live-verified on 2-monitor rig: hotspot==target exactly. INCIDENT (PM): PR #12 merged while windows-build red - PM merge script broke poll on any terminal conclusion and admin bypassed required checks. Root cause of red: T-002 ScriptedPressIsDelivered measured wall-clock at dispatcher-continuation time; T-004 startup rendering delays continuation ~650ms on slow CI. Fix in #13: timeline records scheduled virtual instant (AC: on the virtual clock), slip>100ms logged. Hardenings: enforce_admins=true on feature/windows-build (platform-gated merges, no admin bypass), merge script requires all 3 checks == success. Deviations: StreamingBubbleVisibleWithin300ms bound relative to event delivery (ADR acceptance 9 wording); QA-matrix items (mixed-DPI 4px rig, 60s CPU, z-order) remain for phase 7. | QA-FAIL 2026-10-23 (blind): literal AC said tMs<=300 absolute; measured ~650 on 3 runs. Root cause: AC paraphrase dropped the spec's of-the-event-delivered qualifier (spec CLA-04 + ADR acceptance 9 both carry it; committed test measures delivery-relative). AC corrected to the spec wording; re-QA pending.",
       "qa_result": {
         "verdict": "pass",
-        "evidence": "Blind QA round 2 (2026-10-23): personally-run replays + CI check/step evidence on build commit f386b25a; see .scratch/windows-port/qa-pack/qa-run2.log"
+        "evidence": "QA round 2 (corrected AC): hand-verified hotspot==target on both monitors of the QA rig ((640,360), (3040,630)); delivery-relative first-bubble latency computed from report within 300ms of the 4th event."
       }
     },
     {

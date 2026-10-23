@@ -698,6 +698,97 @@ jobs:
           }
           Write-Host "update-n-to-n1: installed $versionN updated itself to $versionN1 via --debug-update-now from $localFeedDirectory; settings.json SHA256 $settingsHashAfterUpdate unchanged"
 
+      - name: install-hooks
+        # T-034 / WS-20: the per-user install hooks, end to end on the real installer.
+        #   - Run\Clicky (start at login, audit row A3) is written by ClickyInstallHooks from
+        #     Velopack's after-install hook and deleted from its before-uninstall hook.
+        #   - The Start-menu shortcut is Velopack's own: vpk pack's default --shortcuts
+        #     Desktop,StartMenuRoot, named after --packTitle. Velopack's uninstall removes the
+        #     shortcuts it created.
+        # Both are per-user (HKCU, %APPDATA%) and Setup.exe installs into %LOCALAPPDATA%, so no
+        # elevation is involved; the HKLM check proves nothing landed machine-wide. (The hosted
+        # runner account is itself an admin, so this proves per-user targets, not a UAC prompt.)
+        #
+        # Starts from a clean slate: the earlier steps installed too, and update-n-to-n1 deletes
+        # its install root by hand, which leaves its Run value and shortcut behind; a leftover
+        # must not satisfy the "created" assertions. The update reuses installed-replay's
+        # second package (RUNNER_TEMP\clicky-second-package, a newer version than N).
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $velopackRootDirectory = Join-Path $env:LOCALAPPDATA "Clicky"
+          $installedCurrentDirectory = Join-Path $velopackRootDirectory "current"
+          $installedClickyExecutablePath = Join-Path $installedCurrentDirectory "Clicky.exe"
+          $runRegistryKeyPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+          # The stable exe path (current\ keeps its name across updates), quoted as ClickyInstallHooks writes it.
+          $expectedRunValue = "`"$installedClickyExecutablePath`""
+          $startMenuShortcutPath = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Clicky.lnk"
+          function Get-ClickyRunValue { (Get-ItemProperty -Path $runRegistryKeyPath -ErrorAction SilentlyContinue).Clicky }
+
+          # 1) Clean slate.
+          Get-Process -Name Clicky -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (Test-Path $velopackRootDirectory) { Remove-Item -LiteralPath $velopackRootDirectory -Recurse -Force }
+          Remove-ItemProperty -Path $runRegistryKeyPath -Name "Clicky" -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $startMenuShortcutPath -Force -ErrorAction SilentlyContinue
+
+          # 2) Silent install: the Run value points at the stable exe path and the shortcut exists.
+          $setupExecutablePath = @(Get-ChildItem "../artifacts/package/*-Setup.exe")[0].FullName
+          $installProcess = Start-Process -FilePath $setupExecutablePath -ArgumentList "--silent" -PassThru -Wait
+          if ($installProcess.ExitCode -ne 0 -or -not (Test-Path $installedClickyExecutablePath)) {
+            Write-Host "::error::install-hooks: silent install exited $($installProcess.ExitCode) or did not create $installedClickyExecutablePath"
+            exit 1
+          }
+          $runValueAfterInstall = Get-ClickyRunValue
+          if ($runValueAfterInstall -ne $expectedRunValue) {
+            Write-Host "::error::install-hooks: HKCU Run\Clicky after install is '$runValueAfterInstall', expected '$expectedRunValue'"
+            exit 1
+          }
+          if ($null -ne (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue).Clicky) {
+            Write-Host "::error::install-hooks: the install wrote a machine-wide HKLM Run\Clicky value; start-at-login must be per-user"
+            exit 1
+          }
+          if (-not (Test-Path $startMenuShortcutPath)) {
+            Get-ChildItem (Split-Path $startMenuShortcutPath) -Filter *.lnk | ForEach-Object { Write-Host "start menu: $($_.Name)" }
+            Write-Host "::error::install-hooks: the install did not create the Start-menu shortcut $startMenuShortcutPath"
+            exit 1
+          }
+
+          # 3) Update through Update.exe apply (the path users ride); the Run value must be unchanged.
+          $secondFullNupkgFiles = @(Get-ChildItem (Join-Path $env:RUNNER_TEMP "clicky-second-package/*-full.nupkg"))
+          if ($secondFullNupkgFiles.Count -ne 1) {
+            Write-Host "::error::install-hooks: expected installed-replay's second full .nupkg in RUNNER_TEMP\clicky-second-package, found $($secondFullNupkgFiles.Count)"
+            exit 1
+          }
+          $secondPackageVersion = "0.1.0-ci.$env:GITHUB_RUN_NUMBER.1"
+          $updateExecutablePath = Join-Path $velopackRootDirectory "Update.exe"
+          $applyProcess = Start-Process -FilePath $updateExecutablePath -ArgumentList @("apply", "-s", "--norestart", "-p", $secondFullNupkgFiles[0].FullName) -PassThru -Wait
+          if ($applyProcess.ExitCode -ne 0 -or (Get-Content (Join-Path $installedCurrentDirectory "sq.version") -Raw) -notmatch [Regex]::Escape($secondPackageVersion)) {
+            Write-Host "::error::install-hooks: Update.exe apply of $secondPackageVersion exited $($applyProcess.ExitCode) or current\sq.version does not report it"
+            exit 1
+          }
+          $runValueAfterUpdate = Get-ClickyRunValue
+          if ($runValueAfterUpdate -ne $runValueAfterInstall) {
+            Write-Host "::error::install-hooks: HKCU Run\Clicky changed across the update ('$runValueAfterInstall' -> '$runValueAfterUpdate')"
+            exit 1
+          }
+
+          # 4) Silent uninstall: the Run value and the shortcut are both removed.
+          $uninstallProcess = Start-Process -FilePath $updateExecutablePath -ArgumentList @("uninstall", "-s") -PassThru -Wait
+          if ($uninstallProcess.ExitCode -ne 0) {
+            Write-Host "::error::install-hooks: silent uninstall (Update.exe uninstall -s) exited $($uninstallProcess.ExitCode)"
+            exit 1
+          }
+          $runValueAfterUninstall = Get-ClickyRunValue
+          if ($null -ne $runValueAfterUninstall) {
+            Write-Host "::error::install-hooks: HKCU Run\Clicky survived the uninstall ('$runValueAfterUninstall')"
+            exit 1
+          }
+          if (Test-Path $startMenuShortcutPath) {
+            Write-Host "::error::install-hooks: the Start-menu shortcut $startMenuShortcutPath survived the uninstall"
+            exit 1
+          }
+          Write-Host "install-hooks: install wrote Run\Clicky=$runValueAfterInstall and $startMenuShortcutPath; unchanged across the $secondPackageVersion update; uninstall removed both"
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v5

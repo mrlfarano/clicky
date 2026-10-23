@@ -25,6 +25,7 @@ internal sealed partial class CompanionCoordinator(
 {
     private readonly Queue<(CompanionSessionEvent SessionEvent, long EventTMs)> pendingSessionEvents = new();
     private readonly List<VoiceStateTimelineEntry> voiceStateTimeline = [];
+    private readonly AnalyticsEvents analyticsEvents = new();
     // shortcut: no Started event yet (persistent/transient start, ONB-03): the runner shows the overlay at the
     // cursor when an exchange starts; feed Started from settings and setup state with onboarding (WS-18).
     private CompanionSessionState sessionState = CompanionSessionState.Initial;
@@ -248,13 +249,29 @@ internal sealed partial class CompanionCoordinator(
                 Dispatch(new CompanionSessionEvent.TtsEnded(), currentEventTMs);
                 break;
             case CompanionSessionEffect.TrackAnalyticsEvent trackAnalyticsEvent:
-                // shortcut: no event properties until the AN-01 catalogue maps EventContent to them (T-044).
-                analyticsSink.TrackEvent(trackAnalyticsEvent.EventName);
+                analyticsSink.TrackEvent(BuildCatalogueAnalyticsEvent(trackAnalyticsEvent));
                 break;
             default:
                 throw new InvalidOperationException($"No executor for session effect {effect}.");
         }
     }
+
+    /// <summary>
+    /// The reducer names the event and carries its content; the AN-01 catalogue owns the property keys, the
+    /// grapheme character_count and the AN-03 content switch, so every property is built there.
+    /// </summary>
+    private AnalyticsEvent BuildCatalogueAnalyticsEvent(CompanionSessionEffect.TrackAnalyticsEvent trackAnalyticsEvent) =>
+        trackAnalyticsEvent.EventName switch
+        {
+            "push_to_talk_started" => analyticsEvents.PushToTalkStarted(),
+            "push_to_talk_released" => analyticsEvents.PushToTalkReleased(),
+            "user_message_sent" => analyticsEvents.UserMessageSent(trackAnalyticsEvent.EventContent!),
+            "ai_response_received" => analyticsEvents.AiResponseReceived(trackAnalyticsEvent.EventContent!),
+            "element_pointed" => analyticsEvents.ElementPointed(trackAnalyticsEvent.EventContent),
+            "response_error" => analyticsEvents.ResponseError(trackAnalyticsEvent.EventContent!),
+            "tts_error" => analyticsEvents.TtsError(trackAnalyticsEvent.EventContent!),
+            _ => throw new InvalidOperationException($"No AN-01 catalogue event for {trackAnalyticsEvent.EventName}."),
+        };
 
     private async Task RunChatExchangeAsync(CompanionSessionEffect.StartChatRequest startChatRequest, long submitTMs, CancellationToken cancellationToken)
     {
@@ -313,7 +330,7 @@ internal sealed partial class CompanionCoordinator(
             }
             catch (Exception ttsException)
             {
-                analyticsSink.TrackEvent("tts_error");
+                analyticsSink.TrackEvent(analyticsEvents.TtsError(ttsException.Message));
                 ClickyLog.Write($"tts failed: {ttsException.Message}");
                 // CompanionManager.swift:765: the fallback voice is a response too, and the reply ends with it (:721-722).
                 Dispatch(new CompanionSessionEvent.TtsStarted(), ElapsedTMs);

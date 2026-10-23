@@ -135,6 +135,8 @@ public sealed class HookSendInputSmokeTests
         string liveSettingsFilePath = Path.Combine(liveCopyDirectoryPath, "appsettings.json");
         JsonNode liveSettings = JsonNode.Parse(File.ReadAllText(liveSettingsFilePath))!;
         liveSettings["WorkerBaseUrl"] = "http://127.0.0.1:9/";
+        // The presses fire real push_to_talk events; with no key the live sink sends none to the production project.
+        liveSettings["PostHogApiKey"] = "";
         File.WriteAllText(liveSettingsFilePath, liveSettings.ToJsonString());
         return liveCopyDirectoryPath;
     }

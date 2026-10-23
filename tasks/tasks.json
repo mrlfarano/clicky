@@ -526,9 +526,9 @@
         "Given several sessions, when connecting, then SttReplayTests.SharedHandlerAcrossSessions asserts ConnectAsync used one shared invoker, close code 1001 and Channel<T> serialisation."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/SttReplayTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-14 part 3. Record the .jsonl on the VM by extending --record to WebSocket frames. Uses ClientWebSocket.ConnectAsync(uri, sharedInvoker, ct) (AGENTS.md lesson).",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/35",
+      "dev_notes": "AssemblyAI WS shell: ONE shared invoker (ClientWebSocket), ReplayWebSocketConnector (.jsonl recordings), RunDictationAsync session-then-mic, T-022 finalize driven (stall 1400ms +-100ms), transcript->/chat clean displayTimeline, errors->no request+idle, close 1001+Channel serialization. Four .jsonl + token-500 fixtures. PM merge with T-029/T-031/T-044. VM: live STT, .jsonl re-record via --record (not built).",
       "qa_result": null
     },
     {
@@ -673,9 +673,9 @@
         "Given PlaybackStopped raised on the fake output, when handled, then TtsReplayTests.PlaybackStoppedSignalsTtsEnded asserts TtsEnded reaches the reducer."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/TtsReplayTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-17 part 2. NAudio Mp3FileReader -> WasapiOut; System.Speech (MIT) for the fallback. QA-matrix: 'tts stopped (preempted)' logged <= 100 ms after 'ptt pressed'; audible playback and system voice.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/32",
+      "dev_notes": "MP3 playback (IAudioOutput: NAudio MF reader + WasapiOut, full-download-then-play per Swift), System.Speech fallback on 402, press-to-stop, PlaybackStopped->TtsEnded. Fake audio output drives AC tests. PM merge with T-022/T-025/T-027 (4 conflicted files) + the CI-determinism fix on transcript-finalize (deadline tracking instead of FakeTimeProvider timers - callback-queue race under load). Live WASAPI unrun (VM).",
       "qa_result": null
     },
     {
@@ -722,9 +722,9 @@
         "Given setup incomplete, when the app starts on a fake clock, then PanelHideRulesTests.AutoOpensAfter300ms asserts the panel opens at 0.3 s."
       ],
       "test_path": "windows/tests/Clicky.Core.Tests/PanelAnchorTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-18 part 2 (B1-B6). Pure anchor/hide logic in Core so it runs on Linux; WPF glue in Clicky.Windows. H.NotifyIcon.Wpf. PanelHideRulesTests and TrayThemeTests sit beside the test_path file. QA-matrix: PNL-01/02/05/07 with taskbar bottom and left; pin-the-tray-icon on Win11.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/33",
+      "dev_notes": "Tray icon (H.NotifyIcon, live-only), PanelAnchor per taskbar edge, hide rules with reasons (mic-denied keeps panel), themed placeholder .ico, auto-open 0.3s virtual clock. QA: mixed-DPI panel pos, focus-on-click, overflow-flyout anchor. 64-bit PInvoke shortcut noted.",
       "qa_result": null
     },
     {
@@ -1037,9 +1037,9 @@
         "Given no identify yet, when an event is sent, then AnalyticsSinkTests.UsesAnalyticsDistinctIdUntilIdentify asserts the distinct id, and after identify it is the email."
       ],
       "test_path": "windows/tests/Clicky.Windows.Tests/AnalyticsReplayTests.cs",
-      "status": "todo",
-      "pr": null,
-      "dev_notes": "WS-24 part 2. Decision: direct POST to us.i.posthog.com on the shared HttpClient; no PostHog SDK. AnalyticsSinkTests live in windows/tests/Clicky.Windows.Tests/AnalyticsSinkTests.cs.",
+      "status": "done",
+      "pr": "https://github.com/mrlfarano/clicky/pull/34",
+      "dev_notes": "PostHogAnalyticsSink fire-and-forget (failures dropped, no key=no-op logged); catalogue wired (literals replaced); full-exchange AN-01 order asserted, zero posthog.com in replay; distinct id UUIDv7 on first live launch until identify(email). RISK: live runs of key-shipping builds send real events. PM merge with T-031 (both methods coexist) + TtsError catalogue fix.",
       "qa_result": null
     }
   ]

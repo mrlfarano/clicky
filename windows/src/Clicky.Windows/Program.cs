@@ -340,9 +340,10 @@ internal static class Program
         }
         ClickyLog.Write($"live: listening for {effectiveUserSettings.PushToTalkShortcut} (left Ctrl + left Alt by default), chat {chatEndpoint}");
 
-        // The tray icon and panel (T-031) are live only, and are skipped under --debug-quit-after-ms too: that flag only
-        // exercises startup and the ordered shutdown, and a panel opening on CI runners would add nothing but noise.
-        if (options.DebugQuitAfter is null)
+        // The tray icon and panel (T-031) are live only, and are skipped under --debug-quit-after-ms and
+        // --debug-crash too: those flags only exercise startup/shutdown/crash-reporting, and a panel opening
+        // on CI runners adds nothing but noise (and, under load, minutes of avoidable startup before the crash).
+        if (options.DebugQuitAfter is null && !options.DebugCrashRequested)
         {
             StartTrayIconAndPanel(
                 application, effectiveUserSettings, userSettingsStore, claudeClient, overlayWindow, companionCoordinator, shortcutMonitor,

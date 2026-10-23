@@ -29,8 +29,12 @@ internal static class Program
         // Velopack requires this call before any other code in the process: it handles the
         // installer/update hook arguments (e.g. --veloapp-install) and may exit right here,
         // before the WPF Application exists. It must stay the first statement of Main;
-        // PackagingWorkflowTests.VelopackIsFirstLineOfMain pins that.
-        VelopackApp.Build().Run();
+        // PackagingWorkflowTests.VelopackIsFirstLineOfMain pins that. The install hooks
+        // (ClickyInstallHooks) run inside Run() and the process exits once they return.
+        VelopackApp.Build()
+            .OnAfterInstallFastCallback(ClickyInstallHooks.WriteStartAtLoginRunValue)
+            .OnBeforeUninstallFastCallback(ClickyInstallHooks.DeleteStartAtLoginRunValue)
+            .Run();
 
         // Crash reporting goes in as the very next step, before anything else can throw
         // (WS-11): an unhandled exception on any thread must land in crashes\ before the
